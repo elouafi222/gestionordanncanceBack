@@ -190,7 +190,6 @@ module.exports.sendEmail = asyncHandler(async (req, res) => {
     subject: sujet,
     message: message,
   };
-
   await sendEmail(email, sujet, "response", context);
   res.status(201).json("La message a été envoyer avec succès.");
 });
