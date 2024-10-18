@@ -3,7 +3,7 @@ const serviceAccount = require("../config/serviceAccountKey.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  storageBucket: "gestion-pharmacie-e1245.appspot.com",
+  storageBucket: "pharmcie-de-la-pointe-a10d5.appspot.com",
 });
 
 const bucket = admin.storage().bucket();
