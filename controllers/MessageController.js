@@ -89,6 +89,7 @@ module.exports.acceptMessage = asyncHandler(async (req, res) => {
     await cycle.save();
 
     const noteNew = new note({
+      type : "global",
       ordonnanceId: newOrdonnance._id,
       text: " ",
       cycleId: cycle._id,
