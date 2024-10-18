@@ -1,8 +1,12 @@
 const admin = require("firebase-admin");
-const serviceAccount = require("../config/serviceAccountKey.json");
+const serviceAccount = Buffer.from(
+  process.env.GOOGLE_APPLICATION_CREDENTIALS,
+  "base64"
+).toString("utf-8");
 
+const parsedServiceAccount = JSON.parse(serviceAccount);
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
+  credential: admin.credential.cert(parsedServiceAccount),
   storageBucket: "pharmcie-de-la-pointe-a10d5.appspot.com",
 });
 

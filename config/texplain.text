@@ -1,0 +1,6 @@
+to get acount service keys VARIVBALE ENV :
+  - open cmd
+1 - path of serviceAcountKey
+2 - powershell
+3 - [Convert]::ToBase64String([IO.File]::ReadAllBytes("serviceAccountKey.json")) | Out-File -Encoding ascii "serviceAccountKey.b64"
+4 - replace GOOGLE_APPLICATION_CREDENTIALS 
