@@ -4,7 +4,7 @@ const { per_page } = require("../utils/constant");
 const { deleteFromFirebase } = require("../utils/firebase");
 const { ordonnance, validateAddOrdonnance } = require("../models/ordonnance");
 const { note } = require("../models/note");
-const { cycle } = require("../models/cycle");
+const { cycle: Cycle } = require("../models/cycle");
 
 module.exports.getMessage = asyncHandler(async (req, res) => {
   const { page, sender, type } = req.query;
@@ -79,7 +79,7 @@ module.exports.acceptMessage = asyncHandler(async (req, res) => {
 
     const newOrdonnance = new ordonnance(ordonnanceData);
 
-    const cycle = new cycle({
+    const cycle = new Cycle({
       ordonnanceId: newOrdonnance._id,
       collabId: null,
       cycleNumber: 1,
@@ -89,7 +89,7 @@ module.exports.acceptMessage = asyncHandler(async (req, res) => {
     await cycle.save();
 
     const noteNew = new note({
-      type : "global",
+      type: "global",
       ordonnanceId: newOrdonnance._id,
       text: " ",
       cycleId: cycle._id,
