@@ -15,6 +15,9 @@ module.exports = async (userEmail, subject, template, context) => {
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
       },
+      tls: {
+        rejectUnauthorized: false, // Bypass self-signed cert errors (if needed)
+      },
     });
 
     const { default: hbs } = await import("nodemailer-express-handlebars");
