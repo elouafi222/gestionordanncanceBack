@@ -1149,7 +1149,16 @@ module.exports.deleteOrdonnance = asyncHandler(async (req, res) => {
       message: "Pour avoir accès, tu dois assumer la responsabilité.",
     });
   }
-  await deleteFromFirebase(ordo.url);
+  try {
+    await deleteFromFirebase(ordo.url);
+  } catch (error) {
+    if (error.code === 404) {
+      console.warn(`File not found: ${ordo.url}, continuing deletion.`);
+    } else {
+      console.error("Error deleting file from Firebase:", error);
+    }
+  }
+
   await ordonnance.findByIdAndDelete(req.params.id);
   await note.deleteMany({ ordonnanceId: req.params.id });
   await Cycle.deleteMany({ ordonnanceId: req.params.id });

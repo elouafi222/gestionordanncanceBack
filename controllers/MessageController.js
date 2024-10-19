@@ -34,7 +34,15 @@ module.exports.deleteMessage = asyncHandler(async (req, res) => {
     return res.status(404).json({ message: "Le message n'existe pas." });
   }
   try {
-    await deleteFromFirebase(msg.url);
+    try {
+      await deleteFromFirebase(msg.url);
+    } catch (error) {
+      if (error.code === 404) {
+        console.warn(`File not found: ${msg.url}, continuing deletion.`);
+      } else {
+        console.error("Error deleting file from Firebase:", error);
+      }
+    }
     await message.findByIdAndDelete(req.params.id);
 
     res
