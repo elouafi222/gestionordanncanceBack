@@ -56,7 +56,15 @@ async function deleteFromFirebase(fileUrl) {
     const fileName = decodeURIComponent(
       fileUrl.split("/o/")[1].split("?alt=media")[0]
     );
-    await bucket.file(fileName).delete();
+    const file = bucket.file(fileName);
+    const [exists] = await file.exists();
+
+    if (!exists) {
+      console.warn(`File ${fileName} not found in Firebase Storage.`);
+      return false;
+    }
+
+    await file.delete();
     console.log(`File ${fileName} deleted from Firebase Storage`);
 
     return true;
