@@ -142,10 +142,16 @@ module.exports.getOrdonnances = asyncHandler(async (req, res) => {
         },
         cycles: {
           $cond: {
-            if: { $eq: ["$type", "renouveller"] }, // Check if type is "renouveller"
+            if: { $eq: ["$type", "renouveller"] },
             then: {
               $map: {
-                input: "$cycles",
+                input: {
+                  $filter: {
+                    input: "$cycles",
+                    as: "cycle",
+                    cond: { $ne: ["$$cycle.status", "null"] },
+                  },
+                },
                 as: "cycle",
                 in: {
                   cycleId: "$$cycle._id",
@@ -341,7 +347,13 @@ module.exports.getTodayOrdonnances = asyncHandler(async (req, res) => {
             if: { $eq: ["$type", "renouveller"] },
             then: {
               $map: {
-                input: "$cycles",
+                input: {
+                  $filter: {
+                    input: "$cycles",
+                    as: "cycle",
+                    cond: { $ne: ["$$cycle.status", "null"] },
+                  },
+                },
                 as: "cycle",
                 in: {
                   cycleId: "$$cycle._id",
@@ -492,7 +504,13 @@ module.exports.getTodayOrdonnances = asyncHandler(async (req, res) => {
         },
         cycles: {
           $map: {
-            input: "$cycles",
+            input: {
+              $filter: {
+                input: "$cycles",
+                as: "cycle",
+                cond: { $ne: ["$$cycle.status", "null"] },
+              },
+            },
             as: "cycle",
             in: {
               cycleId: "$$cycle._id",
@@ -714,7 +732,13 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
         },
         cycles: {
           $map: {
-            input: "$cycles",
+            input: {
+              $filter: {
+                input: "$cycles",
+                as: "cycle",
+                cond: { $ne: ["$$cycle.status", "null"] },
+              },
+            },
             as: "cycle",
             in: {
               cycleId: "$$cycle._id",
@@ -841,7 +865,13 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
         },
         cycles: {
           $map: {
-            input: "$cycles",
+            input: {
+              $filter: {
+                input: "$cycles",
+                as: "cycle",
+                cond: { $ne: ["$$cycle.status", "null"] },
+              },
+            },
             as: "cycle",
             in: {
               cycleId: "$$cycle._id",
@@ -1359,7 +1389,13 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
         },
         cycles: {
           $map: {
-            input: "$cycles",
+            input: {
+              $filter: {
+                input: "$cycles",
+                as: "cycle",
+                cond: { $ne: ["$$cycle.status", "null"] },
+              },
+            },
             as: "cycle",
             in: {
               cycleId: "$$cycle._id",
@@ -1504,7 +1540,13 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
         },
         cycles: {
           $map: {
-            input: "$cycles",
+            input: {
+              $filter: {
+                input: "$cycles",
+                as: "cycle",
+                cond: { $ne: ["$$cycle.status", "null"] },
+              },
+            },
             as: "cycle",
             in: {
               cycleId: "$$cycle._id",
@@ -1632,7 +1674,13 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
         },
         cycles: {
           $map: {
-            input: "$cycles",
+            input: {
+              $filter: {
+                input: "$cycles",
+                as: "cycle",
+                cond: { $ne: ["$$cycle.status", "null"] },
+              },
+            },
             as: "cycle",
             in: {
               cycleId: "$$cycle._id",

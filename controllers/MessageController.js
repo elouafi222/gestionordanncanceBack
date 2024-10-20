@@ -63,8 +63,7 @@ module.exports.acceptMessage = asyncHandler(async (req, res) => {
 
   try {
     const { error } = validateAddOrdonnance({
-      url: msg.url,
-      dateReception: msg.timestamp,
+      url: msg.url
     });
     if (error) {
       console.error("Validation error:", error.details[0].message);
@@ -72,7 +71,6 @@ module.exports.acceptMessage = asyncHandler(async (req, res) => {
     }
     const ordonnanceData = {
       from: msg.type,
-      dateReception: msg.timestamp,
       url: msg.url,
       type: "unique",
       status: "1",
