@@ -55,6 +55,43 @@ module.exports.deleteMessage = asyncHandler(async (req, res) => {
     });
   }
 });
+module.exports.deleteManyMessages = asyncHandler(async (req, res) => {
+  const { ids } = req.body;
+
+  if (!ids || ids.length === 0) {
+    return res.status(400).json({ message: "Aucun message sélectionné." });
+  }
+
+  try {
+    const messages = await message.find({ _id: { $in: ids } });
+
+    if (messages.length === 0) {
+      return res.status(404).json({ message: "Aucun message trouvé." });
+    }
+    for (const msg of messages) {
+      try {
+        await deleteFromFirebase(msg.url);
+      } catch (error) {
+        if (error.code === 404) {
+          console.warn(`File not found: ${msg.url}, continuing deletion.`);
+        } else {
+          console.error("Error deleting file from Firebase:", error);
+        }
+      }
+    }
+    await message.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      message: "Les messages et leurs fichiers ont été supprimés avec succès.",
+    });
+  } catch (error) {
+    console.error("Error deleting messages or files:", error);
+    res.status(500).json({
+      message: "Erreur lors de la suppression des messages ou des fichiers.",
+    });
+  }
+});
+
 module.exports.acceptMessage = asyncHandler(async (req, res) => {
   const msg = await message.findById(req.params.id);
   if (!msg) {
@@ -63,7 +100,7 @@ module.exports.acceptMessage = asyncHandler(async (req, res) => {
 
   try {
     const { error } = validateAddOrdonnance({
-      url: msg.url
+      url: msg.url,
     });
     if (error) {
       console.error("Validation error:", error.details[0].message);
