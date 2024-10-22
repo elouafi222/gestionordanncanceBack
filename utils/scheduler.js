@@ -11,7 +11,7 @@ cron.schedule("* * * * *", () => {
   receiveEmail();
 });
 
-cron.schedule("* * * * *", async () => {
+cron.schedule("0 0 * * *", async () => {
   console.log("Running scheduled task to chech renwal...");
   processRenewals();
 });
