@@ -7,6 +7,7 @@ const {
 } = require("../utils/firebase");
 const { message } = require("../models/message");
 const moment = require("moment");
+const moment2 = require("moment-timezone");
 const { note } = require("../models/note");
 const { user } = require("../models/user");
 const sendEmail = require("../utils/sendEmail");
@@ -1198,14 +1199,25 @@ module.exports.deleteOrdonnance = asyncHandler(async (req, res) => {
 
 module.exports.processRenewals = asyncHandler(async (req, res) => {
   try {
-    const today = moment().startOf("day").toDate();
-    const tomorrow = moment().endOf("day").toDate();
+    const guadeloupeMidnight = moment2
+      .tz("America/Guadeloupe")
+      .startOf("day")
+      .toDate();
+    const endOfGuadeloupeDay = moment2
+      .tz("America/Guadeloupe")
+      .endOf("day")
+      .toDate();
 
     console.log(
-      `Processing renewals for ${moment(today).format("YYYY-MM-DD")}`
+      `Processing renewals for ${moment2(guadeloupeMidnight).format(
+        "YYYY-MM-DD"
+      )} in Guadeloupe time`
     );
     const ordonnancesToRenew = await ordonnance.find({
-      dateRenouvellement: { $gte: today, $lte: tomorrow },
+      dateRenouvellement: {
+        $gte: guadeloupeMidnight,
+        $lte: endOfGuadeloupeDay,
+      },
       times: { $gt: 0 },
       type: "renouveller",
       status: { $ne: "3" },
