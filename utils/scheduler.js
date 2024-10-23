@@ -11,11 +11,11 @@ cron.schedule("* * * * *", () => {
   receiveEmail();
 });
 
-cron.schedule("0 4 * * *", async () => {
+cron.schedule("* * * * *", async () => {
   console.log("Running scheduled task to check renwal...");
   processRenewals();
 });
-cron.schedule("0 * * * *", async () => {
+cron.schedule("* * * * *", async () => {
   console.log("Running scheduled task to updated EN ATTENTE(ordonnances) ...");
   updateEnAttent();
 });

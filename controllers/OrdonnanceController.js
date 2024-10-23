@@ -7,6 +7,7 @@ const {
 } = require("../utils/firebase");
 const { message } = require("../models/message");
 const moment2 = require("moment-timezone");
+const moment = require("moment");
 const { note } = require("../models/note");
 const { user } = require("../models/user");
 const sendEmail = require("../utils/sendEmail");
@@ -949,8 +950,8 @@ module.exports.addOrdonnace = asyncHandler(async (req, res) => {
     let nextRenouvellementDate = null;
     const today = new Date();
     if (req.body.type === "renouveller") {
-      nextRenouvellementDate = moment2
-        .tz("America/Guadeloupe")(today)
+      nextRenouvellementDate = moment2(today)
+        .tz("America/Guadeloupe")
         .add(req.body.periodeRenouvellement, "days")
         .toDate();
     }
@@ -1226,8 +1227,16 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
     const updatedOrdonnances = [];
 
     for (const ord of ordonnancesToRenew) {
-      const nextRenouvellementDate = moment2
-        .tz("America/Guadeloupe")(ord.dateRenouvellement)
+      const lastCycle = await Cycle.findOne({ ordonnanceId: ord._id })
+        .sort({ createdAt: -1 })
+        .exec();
+
+      if (lastCycle) {
+        lastCycle.status = "3";
+        await lastCycle.save();
+      }
+      const nextRenouvellementDate = moment2(ord.dateRenouvellement)
+        .tz("America/Guadeloupe")
         .add(ord.periodeRenouvellement, "days")
         .startOf("day")
         .toDate();
@@ -1290,15 +1299,12 @@ const checkAndUpdateStatus = async (ordonnance) => {
 
 module.exports.updateEnAttent = asyncHandler(async (req, res) => {
   try {
-    const now = moment2.tz("America/Guadeloupe")();
+    const now = moment2().tz("America/Guadeloupe");
     const ordonnancesToUpdate = await ordonnance.find({
       type: "unique",
       status: "1",
       dateReception: {
-        $lte: moment2
-          .tz("America/Guadeloupe")(now)
-          .subtract(24, "hours")
-          .toDate(),
+        $lte: now.subtract(24, "hours").toDate(),
       },
     });
 
@@ -1318,14 +1324,11 @@ module.exports.updateEnAttent = asyncHandler(async (req, res) => {
 });
 module.exports.updateCylces = asyncHandler(async (req, res) => {
   try {
-    const now = moment2.tz("America/Guadeloupe")();
+    const now = moment2().tz("America/Guadeloupe");
     const cyclesToUpdate = await Cycle.find({
       status: "1",
       createdAt: {
-        $lte: moment2
-          .tz("America/Guadeloupe")(now)
-          .subtract(24, "hours")
-          .toDate(),
+        $lte: moment2(now).subtract(24, "hours").toDate(),
       },
     });
 

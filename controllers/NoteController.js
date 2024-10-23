@@ -87,9 +87,10 @@ module.exports.updateNote = asyncHandler(async (req, res) => {
   }
   res.status(200).json(updatedNote);
 });
+
 module.exports.getNotesByOrdId = asyncHandler(async (req, res) => {
   const { ordoId } = req.params; // Get ordonnance ID from route params
-  // console.log(ordoId);
+
   try {
     const result = await ordonnance.aggregate([
       { $match: { _id: new mongoose.Types.ObjectId(ordoId) } },
@@ -128,7 +129,7 @@ module.exports.getNotesByOrdId = asyncHandler(async (req, res) => {
                 $arrayElemAt: [
                   {
                     $filter: {
-                      input: "$notes",
+                      input: { $ifNull: ["$notes", []] },
                       as: "note",
                       cond: {
                         $and: [
@@ -143,7 +144,7 @@ module.exports.getNotesByOrdId = asyncHandler(async (req, res) => {
               },
               else: {
                 $filter: {
-                  input: "$notes",
+                  input: { $ifNull: ["$notes", []] },
                   as: "note",
                   cond: {
                     $and: [
@@ -162,7 +163,7 @@ module.exports.getNotesByOrdId = asyncHandler(async (req, res) => {
                 $map: {
                   input: {
                     $filter: {
-                      input: "$cycles",
+                      input: { $ifNull: ["$cycles", []] },
                       as: "cycle",
                       cond: { $ne: ["$$cycle.status", "null"] },
                     },
@@ -176,7 +177,7 @@ module.exports.getNotesByOrdId = asyncHandler(async (req, res) => {
                     cycleStatus: "$$cycle.status",
                     cycleNotes: {
                       $filter: {
-                        input: "$notes",
+                        input: { $ifNull: ["$notes", []] },
                         as: "note",
                         cond: {
                           $and: [
@@ -217,6 +218,44 @@ module.exports.getNotesByOrdId = asyncHandler(async (req, res) => {
                 },
               },
               else: [],
+            },
+          },
+        },
+      },
+      {
+        $addFields: {
+          // Filter out duplicate cycles by keeping only the latest one with the same cycleNumber
+          cycles: {
+            $reduce: {
+              input: {
+                $sortArray: { input: "$cycles", sortBy: { createdAt: -1 } },
+              },
+              initialValue: [],
+              in: {
+                $concatArrays: [
+                  "$$value",
+                  {
+                    $cond: [
+                      {
+                        $not: {
+                          $in: [
+                            "$$this.cycleNumber",
+                            {
+                              $map: {
+                                input: "$$value",
+                                as: "v",
+                                in: "$$v.cycleNumber",
+                              },
+                            },
+                          ],
+                        },
+                      },
+                      ["$$this"],
+                      [],
+                    ],
+                  },
+                ],
+              },
             },
           },
         },
