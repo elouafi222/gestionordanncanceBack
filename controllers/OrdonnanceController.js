@@ -1299,7 +1299,7 @@ const checkAndUpdateStatus = async (ordonnance) => {
 
 module.exports.updateEnAttent = asyncHandler(async (req, res) => {
   try {
-    const now = moment2().tz("America/Guadeloupe");
+    const now = moment();
     const ordonnancesToUpdate = await ordonnance.find({
       type: "unique",
       status: "1",
@@ -1324,11 +1324,11 @@ module.exports.updateEnAttent = asyncHandler(async (req, res) => {
 });
 module.exports.updateCylces = asyncHandler(async (req, res) => {
   try {
-    const now = moment2().tz("America/Guadeloupe");
+    const now = moment();
     const cyclesToUpdate = await Cycle.find({
       status: "1",
       createdAt: {
-        $lte: moment2(now).subtract(24, "hours").toDate(),
+        $lte: moment(now).subtract(24, "hours").toDate(),
       },
     });
 
