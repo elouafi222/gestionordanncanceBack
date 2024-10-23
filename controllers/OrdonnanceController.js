@@ -6,7 +6,6 @@ const {
   uploadToFirebaseManually,
 } = require("../utils/firebase");
 const { message } = require("../models/message");
-const moment = require("moment");
 const moment2 = require("moment-timezone");
 const { note } = require("../models/note");
 const { user } = require("../models/user");
@@ -950,7 +949,8 @@ module.exports.addOrdonnace = asyncHandler(async (req, res) => {
     let nextRenouvellementDate = null;
     const today = new Date();
     if (req.body.type === "renouveller") {
-      nextRenouvellementDate = moment(today)
+      nextRenouvellementDate = moment2
+        .tz("America/Guadeloupe")(today)
         .add(req.body.periodeRenouvellement, "days")
         .toDate();
     }
@@ -1226,7 +1226,8 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
     const updatedOrdonnances = [];
 
     for (const ord of ordonnancesToRenew) {
-      const nextRenouvellementDate = moment(ord.dateRenouvellement)
+      const nextRenouvellementDate = moment2
+        .tz("America/Guadeloupe")(ord.dateRenouvellement)
         .add(ord.periodeRenouvellement, "days")
         .startOf("day")
         .toDate();
@@ -1289,11 +1290,16 @@ const checkAndUpdateStatus = async (ordonnance) => {
 
 module.exports.updateEnAttent = asyncHandler(async (req, res) => {
   try {
-    const now = moment();
+    const now = moment2.tz("America/Guadeloupe")();
     const ordonnancesToUpdate = await ordonnance.find({
       type: "unique",
       status: "1",
-      dateReception: { $lte: moment(now).subtract(24, "hours").toDate() },
+      dateReception: {
+        $lte: moment2
+          .tz("America/Guadeloupe")(now)
+          .subtract(24, "hours")
+          .toDate(),
+      },
     });
 
     if (ordonnancesToUpdate.length === 0) {
@@ -1312,10 +1318,15 @@ module.exports.updateEnAttent = asyncHandler(async (req, res) => {
 });
 module.exports.updateCylces = asyncHandler(async (req, res) => {
   try {
-    const now = moment();
+    const now = moment2.tz("America/Guadeloupe")();
     const cyclesToUpdate = await Cycle.find({
       status: "1",
-      createdAt: { $lte: moment(now).subtract(24, "hours").toDate() },
+      createdAt: {
+        $lte: moment2
+          .tz("America/Guadeloupe")(now)
+          .subtract(24, "hours")
+          .toDate(),
+      },
     });
 
     if (cyclesToUpdate.length === 0) {
@@ -1333,8 +1344,6 @@ module.exports.updateCylces = asyncHandler(async (req, res) => {
   }
 });
 module.exports.getCounts = asyncHandler(async (req, res) => {
-  // const today2 = moment().startOf("day").toDate();
-  // const tomorrow = moment(today).add(1, "days").toDate();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const endOfToday = new Date(today);

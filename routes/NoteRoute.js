@@ -8,5 +8,5 @@ const { verifyTokenAndAdminAndCollab } = require("../middelwares/verifyToken");
 const router = require("express").Router();
 // router.route("/").post(verifyTokenAndAdminAndCollab, addNote);
 router.route("/:id").put(validateId, verifyTokenAndAdminAndCollab, updateNote);
-// router.get("/notes/:ordId", verifyTokenAndAdminAndCollab, getNotesByOrdId);
+router.get("/notes/:ordoId", verifyTokenAndAdminAndCollab, getNotesByOrdId);
 module.exports = router;
