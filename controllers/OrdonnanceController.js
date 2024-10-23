@@ -1200,25 +1200,26 @@ module.exports.deleteOrdonnance = asyncHandler(async (req, res) => {
 
 module.exports.processRenewals = asyncHandler(async (req, res) => {
   try {
-    const guadeloupeMidnight = moment2
-      .tz("America/Guadeloupe")
-      .startOf("day")
-      .toDate();
-    const endOfGuadeloupeDay = moment2
-      .tz("America/Guadeloupe")
-      .endOf("day")
-      .toDate();
+    // const guadeloupeMidnight = moment().startOf("day").toDate();
+    // const endOfGuadeloupeDay = moment().endOf("day").toDate();
 
-    console.log(
-      `Processing renewals for ${moment2(guadeloupeMidnight).format(
-        "YYYY-MM-DD"
-      )} in Guadeloupe time`
-    );
+    // console.log(
+    //   `Processing renewals for ${moment2(guadeloupeMidnight).format(
+    //     "YYYY-MM-DD"
+    //   )} in Guadeloupe time`
+    // );
+    // const ordonnancesToRenew = await ordonnance.find({
+    //   dateRenouvellement: {
+    //     $gte: guadeloupeMidnight,
+    //   },
+    //   times: { $gt: 0 },
+    //   type: "renouveller",
+    //   status: { $ne: "3" },
+    // });
+    console.log(new Date());
+
     const ordonnancesToRenew = await ordonnance.find({
-      dateRenouvellement: {
-        $gte: guadeloupeMidnight,
-        $lte: endOfGuadeloupeDay,
-      },
+      dateRenouvellement: { $lte: new Date() },
       times: { $gt: 0 },
       type: "renouveller",
       status: { $ne: "3" },
