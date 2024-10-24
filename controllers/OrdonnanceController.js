@@ -6,8 +6,8 @@ const {
   uploadToFirebaseManually,
 } = require("../utils/firebase");
 const { message } = require("../models/message");
-const moment2 = require("moment-timezone");
-const moment = require("moment");
+const moment = require("moment-timezone");
+// const moment = require("moment");
 const { note } = require("../models/note");
 const { user } = require("../models/user");
 const sendEmail = require("../utils/sendEmail");
@@ -386,7 +386,7 @@ module.exports.getTodayOrdonnances = asyncHandler(async (req, res) => {
                         $and: [
                           { $gte: ["$$cycle.createdAt", today] },
                           { $lte: ["$$cycle.createdAt", endOfToday] },
-                          { $eq: ["$$cycle.status", "1"] },
+                          { $in: ["$$cycle.status", ["1", "4"]] },
                         ],
                       },
                       then: true,
@@ -396,7 +396,7 @@ module.exports.getTodayOrdonnances = asyncHandler(async (req, res) => {
                 },
               },
             },
-            else: [], // Return an empty array if type is not "renouveller"
+            else: [],
           },
         },
 
@@ -705,32 +705,6 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
         dateTreatement: 1,
         "collaborator.nom": 1,
         "collaborator.prenom": 1,
-        uniqueNotes: {
-          $cond: {
-            if: { $eq: ["$type", "unique"] },
-            then: "$notes",
-            else: {
-              $cond: {
-                if: { $eq: ["$type", "renouveller"] },
-                then: {
-                  globalNotes: {
-                    $filter: {
-                      input: "$notes",
-                      as: "note",
-                      cond: {
-                        $and: [
-                          { $eq: ["$$note.type", "global"] },
-                          { $eq: ["$$note.ordonnanceId", "$_id"] },
-                        ],
-                      },
-                    },
-                  },
-                },
-                else: [],
-              },
-            },
-          },
-        },
         cycles: {
           $map: {
             input: {
@@ -758,40 +732,19 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
                   },
                 },
               },
-              isEnretard: {
-                $cond: {
-                  if: {
-                    $and: [{ $eq: ["$$cycle.status", "3"] }],
-                  },
-                  then: true,
-                  else: false,
-                },
-              },
-            },
-          },
-        },
-        isEnretard: {
-          $cond: {
-            if: { $eq: ["$type", "unique"] },
-            then: { $eq: ["$status", "4"] },
-            else: {
-              $anyElementTrue: {
-                $map: {
-                  input: "$cycles",
-                  as: "cycle",
-                  in: {
-                    $and: [{ $eq: ["$$cycle.status", "3"] }],
-                  },
-                },
-              },
             },
           },
         },
       },
     },
     {
+      $addFields: {
+        lastCycle: { $arrayElemAt: [{ $slice: ["$cycles", -1] }, 0] },
+      },
+    },
+    {
       $match: {
-        isEnretard: true,
+        "lastCycle.cycleStatus": "3",
       },
     },
     {
@@ -804,6 +757,7 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
       $limit: parseInt(per_page),
     },
   ];
+
   const CountPipeline = [
     { $match: matchQuery },
     {
@@ -837,33 +791,43 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
       },
     },
     {
+      $lookup: {
+        from: "users",
+        localField: "cycles.collabId",
+        foreignField: "_id",
+        as: "cycleCollaborator",
+      },
+    },
+    {
+      $unwind: {
+        path: "$cycleCollaborator",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
       $project: {
-        uniqueNotes: {
-          $cond: {
-            if: { $eq: ["$type", "unique"] },
-            then: "$notes",
-            else: {
-              $cond: {
-                if: { $eq: ["$type", "renouveller"] },
-                then: {
-                  globalNotes: {
-                    $filter: {
-                      input: "$notes",
-                      as: "note",
-                      cond: {
-                        $and: [
-                          { $eq: ["$$note.type", "global"] },
-                          { $eq: ["$$note.ordonnanceId", "$_id"] },
-                        ],
-                      },
-                    },
-                  },
-                },
-                else: [],
-              },
-            },
-          },
-        },
+        numero: 1,
+        nom: 1,
+        prenom: 1,
+        phone: 1,
+        url: 1,
+        email: 1,
+        status: 1,
+        dateReception: 1,
+        updatedAt: 1,
+        isMore500: 1,
+        livraison: 1,
+        adresse: 1,
+        from: 1,
+        collabId: 1,
+        type: 1,
+        dateRenouvellement: 1,
+        times: 1,
+        debutTime: 1,
+        periodeRenouvellement: 1,
+        dateTreatement: 1,
+        "collaborator.nom": 1,
+        "collaborator.prenom": 1,
         cycles: {
           $map: {
             input: {
@@ -891,46 +855,27 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
                   },
                 },
               },
-              isEnretard: {
-                $cond: {
-                  if: {
-                    $and: [{ $eq: ["$$cycle.status", "3"] }],
-                  },
-                  then: true,
-                  else: false,
-                },
-              },
             },
           },
         },
-        isEnretard: {
-          $cond: {
-            if: { $eq: ["$type", "unique"] },
-            then: { $eq: ["$status", "4"] },
-            else: {
-              $anyElementTrue: {
-                $map: {
-                  input: "$cycles",
-                  as: "cycle",
-                  in: {
-                    $and: [{ $eq: ["$$cycle.status", "3"] }],
-                  },
-                },
-              },
-            },
-          },
-        },
+      },
+    },
+    {
+      $addFields: {
+        lastCycle: { $arrayElemAt: [{ $slice: ["$cycles", -1] }, 0] },
       },
     },
     {
       $match: {
-        isEnretard: true,
+        "lastCycle.cycleStatus": "3",
       },
     },
     {
-      $count: "totalCount",
+      $sort: { numero: -1 },
     },
+    { $count: "totalCount" },
   ];
+
   try {
     const ordonnances = await ordonnance.aggregate(pipeline);
     const countResult = await ordonnance.aggregate(CountPipeline);
@@ -950,13 +895,13 @@ module.exports.addOrdonnace = asyncHandler(async (req, res) => {
     let nextRenouvellementDate = null;
     const today = new Date();
     if (req.body.type === "renouveller") {
-      nextRenouvellementDate = moment2(today)
+      nextRenouvellementDate = moment(today)
         .tz("America/Guadeloupe")
         .add(req.body.periodeRenouvellement, "days")
         .toDate();
     }
-    console.log("Now : " + today);
-    console.log("Next : " + nextRenouvellementDate);
+    // console.log("Now : " + today);
+    // console.log("Next : " + nextRenouvellementDate);
     const url = await uploadToFirebaseManually(file);
     const newOrdonnance = new ordonnance({
       nom: req.body.nom,
@@ -991,6 +936,7 @@ module.exports.addOrdonnace = asyncHandler(async (req, res) => {
       const cycle = new Cycle({
         ordonnanceId: newOrdonnance._id,
         collabId: req.body.collabId ? req.body.collabId : null,
+        dateTreatement: new Date(),
         cycleNumber: 1,
         status: "1",
         dateTreatement: null,
@@ -1034,86 +980,161 @@ module.exports.addOrdonnace = asyncHandler(async (req, res) => {
     res.status(500).json("Erreur lors de l'ajout de l'ordonnance.");
   }
 });
-
 module.exports.updateOrdnnance = asyncHandler(async (req, res) => {
   const ordo = await ordonnance.findById(req.params.id);
   if (!ordo) {
-    return res.status(404).json({
-      message: "Ordonnance n'existe pas.",
-    });
+    return res.status(404).json({ message: "Ordonnance n'existe pas." });
   }
+
+  const previousType = ordo.type;
+
+  const updatedFields = {
+    nom: req.body.nom,
+    prenom: req.body.prenom,
+    phone: req.body.phone,
+    email: req.body.email,
+    dateTreatement: req.body.dateTreatement,
+    isMore500: req.body.isMore500,
+    livraison: req.body.livraison,
+    adresse: req.body.livraison ? req.body.adresse : null,
+    type: req.body.type,
+    periodeRenouvellement:
+      req.body.type === "renouveller" ? req.body.periodeRenouvellement : null,
+    dateRenouvellement:
+      req.body.type === "renouveller" ? req.body.dateRenouvellement : null,
+    debutTime: req.body.times,
+    times: req.body.times,
+  };
 
   const updateOrdo = await ordonnance.findByIdAndUpdate(
     req.params.id,
-    {
-      nom: req.body.nom,
-      prenom: req.body.prenom,
-      phone: req.body.phone,
-      email: req.body.email,
-      dateTreatement: req.body.dateTreatement,
-      isMore500: req.body.isMore500,
-      livraison: req.body.livraison,
-      adresse: req.body.livraison ? req.body.adresse : null,
-      type: req.body.type,
-      periodeRenouvellement:
-        req.body.type === "renouveller" ? req.body.periodeRenouvellement : null,
-      dateRenouvellement:
-        req.body.type === "renouveller" ? req.body.dateRenouvellement : null,
-      times: req.body.times,
-      debutTime: req.body.times,
-    },
+    updatedFields,
     { new: true }
   );
-
   if (!updateOrdo) {
     return res.status(500).json({ message: "Failed to update ordonnance." });
   }
-
-  if (req.body.type === "renouveller") {
-    ordo.status = "2";
-    ordo.dateRenouvellement = new Date();
-    ordo.periodeRenouvellement = req.body.periodeRenouvellement;
-    ordo.times = req.body.times;
-
-    await ordo.save();
-
-    await checkAndUpdateStatus(ordo);
-  } else {
-    ordo.status = "2";
+  if (
+    req.body.type === "renouveller" &&
+    previousType === "renouveller" &&
+    req.body.times !== ordo.times
+  ) {
+    ordo.times = Math.max(req.body.times - 1, 0);
     await ordo.save();
   }
+
+  if (previousType === "unique" && req.body.type === "renouveller") {
+    const nextRenouvellementDate = moment(req.body.dateRenouvellement)
+      .add(req.body.periodeRenouvellement, "days")
+      .startOf("day")
+      .toDate();
+
+    const cycle = new Cycle({
+      dateTreatement: new Date(),
+      ordonnanceId: ordo._id,
+      collabId: null,
+      cycleNumber: 1,
+      status: "1",
+    });
+
+    await cycle.save();
+
+    const noteNew = new note({
+      type: "cycle",
+      text: " ",
+      cycleId: cycle._id,
+      ordonnanceId: ordo._id,
+    });
+
+    await noteNew.save();
+    ordo.dateRenouvellement = nextRenouvellementDate;
+    ordo.times = Math.max(req.body.times - 1, 0);
+
+    await ordo.save();
+  }
+
+  if (previousType === "renouveller" && req.body.type === "unique") {
+    const deletedCycles = await Cycle.deleteMany({
+      ordonnanceId: ordo._id,
+      status: { $ne: "null" },
+    });
+    console.log(`${deletedCycles.deletedCount} related cycles deleted.`);
+
+    const deletedNotes = await note.deleteMany({
+      ordonnanceId: ordo._id,
+      type: "cycle",
+    });
+    console.log(`${deletedNotes.deletedCount} related notes deleted.`);
+
+    ordo.dateRenouvellement = null;
+    ordo.times = null;
+    ordo.periodeRenouvellement = null;
+    ordo.debutTime = null;
+
+    await ordo.save();
+  }
+
+  ordo.status = req.body.type === "renouveller" ? ordo.status : "2";
+  await ordo.save();
+
   if (ordo.email && req.body.enoyerMessage) {
     const ordNumero = ordo.numero;
     const sujet = "Mise à jour de votre ordonnance";
     const message = "Votre ordonnance est en cours de traitement.";
 
     const context = {
-      ordNumero: ordNumero,
+      ordNumero,
       subject: sujet,
-      message: message,
+      message,
     };
 
-    await sendEmail(ordo.email, sujet, "response", context);
-    console.log("Le message a été envoyé avec succès.");
+    try {
+      await sendEmail(ordo.email, sujet, "response", context);
+      console.log("Le message a été envoyé avec succès.");
+    } catch (error) {
+      console.error("Error sending email:", error);
+      return res.status(500).json({ message: "Failed to send email." });
+    }
   }
 
   res.status(200).json(updateOrdo);
 });
+
 module.exports.addOrdonnanceCollab = asyncHandler(async (req, res) => {
-  const updateOrdo = await ordonnance.findByIdAndUpdate(
-    req.params.id,
-    {
-      collabId: req.user.id,
-    },
-    { new: true }
-  );
-  if (updateOrdo.type === "renouveller") {
-    await Cycle.updateMany(
-      { ordonnanceId: updateOrdo._id },
-      { $set: { collabId: req.user.id } }
+  try {
+    console.log(req.user.id);
+    const ordo = await ordonnance.findById(req.params.id);
+
+    if (!ordo) {
+      return res.status(404).json({ message: "Ordonnance introuvable" });
+    }
+
+    if (ordo.collabId) {
+      return res
+        .status(400)
+        .json({ message: "L'ordonnance a déjà un collaborateur responsable" });
+    }
+
+    const updateOrdo = await ordonnance.findByIdAndUpdate(
+      req.params.id,
+      { collabId: req.user.id },
+      { new: true }
     );
+
+    if (updateOrdo && updateOrdo.type === "renouveller") {
+      await Cycle.updateMany(
+        { ordonnanceId: updateOrdo._id },
+        { $set: { collabId: req.user.id } }
+      );
+    }
+
+    res.status(200).json(updateOrdo);
+  } catch (error) {
+    console.error(error);
+    res
+      .status(500)
+      .json({ message: "Erreur du serveur. Veuillez réessayer plus tard." });
   }
-  res.status(200).json(updateOrdo);
 });
 module.exports.changeStatusOrdnnance = asyncHandler(async (req, res) => {
   const ordo = await ordonnance.findById(req.params.id);
@@ -1200,11 +1221,11 @@ module.exports.deleteOrdonnance = asyncHandler(async (req, res) => {
 
 module.exports.processRenewals = asyncHandler(async (req, res) => {
   try {
-    // const guadeloupeMidnight = moment().startOf("day").toDate();
+    const guadeloupeMidnight = moment().startOf("day").toDate();
     // const endOfGuadeloupeDay = moment().endOf("day").toDate();
 
     // console.log(
-    //   `Processing renewals for ${moment2(guadeloupeMidnight).format(
+    //   `Processing renewals for ${moment(guadeloupeMidnight).format(
     //     "YYYY-MM-DD"
     //   )} in Guadeloupe time`
     // );
@@ -1216,10 +1237,10 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
     //   type: "renouveller",
     //   status: { $ne: "3" },
     // });
-    console.log(new Date());
+    // console.log(new Date());
 
     const ordonnancesToRenew = await ordonnance.find({
-      dateRenouvellement: { $lte: new Date() },
+      dateRenouvellement: { $lte: guadeloupeMidnight },
       times: { $gt: 0 },
       type: "renouveller",
       status: { $ne: "3" },
@@ -1236,7 +1257,7 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
         lastCycle.status = "3";
         await lastCycle.save();
       }
-      const nextRenouvellementDate = moment2(ord.dateRenouvellement)
+      const nextRenouvellementDate = moment(ord.dateRenouvellement)
         .tz("America/Guadeloupe")
         .add(ord.periodeRenouvellement, "days")
         .startOf("day")
@@ -1247,7 +1268,7 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
       ord.collabId = null;
 
       const cycle = new Cycle({
-        dateTreatement: null,
+        dateTreatement: new Date(),
         ordonnanceId: ord._id,
         collabId: null,
         cycleNumber: ord.debutTime - ord.times,
@@ -1506,9 +1527,8 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
   const countDujourResult = await ordonnance.aggregate(CountDujour);
   const totalCountDujour =
     countDujourResult.length > 0 ? countDujourResult[0].totalCount : 0;
-  //
+
   const CountEnRetard = [
-    { $match: { status: { $nin: ["3"] } } },
     {
       $lookup: {
         from: "users",
@@ -1540,33 +1560,43 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
       },
     },
     {
+      $lookup: {
+        from: "users",
+        localField: "cycles.collabId",
+        foreignField: "_id",
+        as: "cycleCollaborator",
+      },
+    },
+    {
+      $unwind: {
+        path: "$cycleCollaborator",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
       $project: {
-        uniqueNotes: {
-          $cond: {
-            if: { $eq: ["$type", "unique"] },
-            then: "$notes",
-            else: {
-              $cond: {
-                if: { $eq: ["$type", "renouveller"] },
-                then: {
-                  globalNotes: {
-                    $filter: {
-                      input: "$notes",
-                      as: "note",
-                      cond: {
-                        $and: [
-                          { $eq: ["$$note.type", "global"] },
-                          { $eq: ["$$note.ordonnanceId", "$_id"] },
-                        ],
-                      },
-                    },
-                  },
-                },
-                else: [],
-              },
-            },
-          },
-        },
+        numero: 1,
+        nom: 1,
+        prenom: 1,
+        phone: 1,
+        url: 1,
+        email: 1,
+        status: 1,
+        dateReception: 1,
+        updatedAt: 1,
+        isMore500: 1,
+        livraison: 1,
+        adresse: 1,
+        from: 1,
+        collabId: 1,
+        type: 1,
+        dateRenouvellement: 1,
+        times: 1,
+        debutTime: 1,
+        periodeRenouvellement: 1,
+        dateTreatement: 1,
+        "collaborator.nom": 1,
+        "collaborator.prenom": 1,
         cycles: {
           $map: {
             input: {
@@ -1594,45 +1624,25 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
                   },
                 },
               },
-              isEnretard: {
-                $cond: {
-                  if: {
-                    $and: [{ $eq: ["$$cycle.status", "3"] }],
-                  },
-                  then: true,
-                  else: false,
-                },
-              },
             },
           },
         },
-        isEnretard: {
-          $cond: {
-            if: { $eq: ["$type", "unique"] },
-            then: { $eq: ["$status", "4"] },
-            else: {
-              $anyElementTrue: {
-                $map: {
-                  input: "$cycles",
-                  as: "cycle",
-                  in: {
-                    $and: [{ $eq: ["$$cycle.status", "3"] }],
-                  },
-                },
-              },
-            },
-          },
-        },
+      },
+    },
+    {
+      $addFields: {
+        lastCycle: { $arrayElemAt: [{ $slice: ["$cycles", -1] }, 0] },
       },
     },
     {
       $match: {
-        isEnretard: true,
+        "lastCycle.cycleStatus": "3",
       },
     },
     {
-      $count: "totalCount",
+      $sort: { numero: -1 },
     },
+    { $count: "totalCount" },
   ];
   const countEnretardResult = await ordonnance.aggregate(CountEnRetard);
   const totalCountEnAttent =
