@@ -1,11 +1,11 @@
-const Imap = require("imap");
+const Imap = require("node-imap");
 const { simpleParser } = require("mailparser");
 const asyncHandler = require("express-async-handler");
 const { uploadToFirebase } = require("../utils/firebase");
 const { validateSaveMessage, message } = require("../models/message");
 const sendEmail = require("../utils/sendEmail");
 
-const imap = new Imap({
+const imapConfig = {
   user: process.env.EMAIL_USER,
   password: process.env.EMAIL_PASS,
   host: "imap.gmail.com",
@@ -13,38 +13,29 @@ const imap = new Imap({
   tls: true,
   tlsOptions: { rejectUnauthorized: false },
   connTimeout: 30000,
-  debug: (msg) => console.log("[IMAP DEBUG]:", msg),
-});
+};
+
+const imap = new Imap(imapConfig);
 
 function openInbox(cb) {
   imap.openBox("INBOX", false, cb);
+}
+
+function reconnectIMAP() {
+  console.log("Attempting to reconnect...");
+  setTimeout(() => imap.connect(), 5000);
 }
 
 module.exports.receiveEmail = async () => {
   let emailsProcessed = [];
 
   imap.once("ready", function () {
-    openInbox((err, box) => {
+    console.log("IMAP connected successfully.");
+    openInbox(async (err, box) => {
       if (err) {
         console.error("Error opening inbox:", err);
         return;
       }
-
-      // Set up a timer to send NOOP every 5 minutes to keep the connection alive
-      const noopInterval = setInterval(() => {
-        imap.noop((noopErr) => {
-          if (noopErr) {
-            console.error("Error sending NOOP:", noopErr);
-          } else {
-            console.log("NOOP sent successfully to keep the connection alive.");
-          }
-        });
-      }, 5 * 60 * 1000); // 5 minutes
-
-      imap.on("mail", (numNewMail) => {
-        console.log(`New mail received: ${numNewMail}`);
-        // You can add additional logic here if needed
-      });
 
       imap.search(["UNSEEN"], async (err, results) => {
         if (err) {
@@ -53,7 +44,7 @@ module.exports.receiveEmail = async () => {
         }
 
         if (!results || !results.length) {
-          console.log("No unread emails found");
+          console.log("No unread emails found.");
           return;
         }
 
@@ -61,7 +52,7 @@ module.exports.receiveEmail = async () => {
           const fetch = imap.fetch(results, { bodies: "", struct: true });
 
           fetch.on("message", (msg, seqno) => {
-            console.log("Processing email #%d", seqno);
+            console.log(`Processing email #${seqno}`);
             let uid = null;
 
             msg.on("attributes", (attrs) => {
@@ -80,7 +71,7 @@ module.exports.receiveEmail = async () => {
             });
 
             msg.once("end", () => {
-              console.log("Finished processing email");
+              console.log("Finished processing email.");
             });
           });
 
@@ -89,10 +80,8 @@ module.exports.receiveEmail = async () => {
           });
 
           fetch.once("end", () => {
-            console.log("Done fetching all messages");
+            console.log("Done fetching all messages.");
             console.log("Emails Processed:", emailsProcessed);
-            clearInterval(noopInterval); // Clear the NOOP interval
-            imap.end(); // Gracefully close connection after fetch
           });
         } catch (fetchError) {
           console.error("General fetch error:", fetchError);
@@ -103,26 +92,21 @@ module.exports.receiveEmail = async () => {
 
   imap.once("error", (err) => {
     console.error("IMAP error:", err);
-    // Reconnect on connection reset or timeout
-    if (err.code === "ECONNRESET" || err.code === "ETIMEDOUT") {
-      console.log("Reconnecting due to error...");
-      setTimeout(() => imap.connect(), 5000);
+    if (["ECONNRESET", "ETIMEDOUT"].includes(err.code)) {
+      console.log("Reconnecting due to connection error...");
+      reconnectIMAP();
     }
   });
 
   imap.once("end", () => {
-    console.log("IMAP connection closed");
+    console.log("IMAP connection closed.");
   });
 
   imap.connect();
 };
 
+// Helper to process individual emails
 async function handleEmailProcessing(stream, uid, emailsProcessed) {
-  if (!uid) {
-    console.error("Cannot mark email as seen. UID is null.");
-    return;
-  }
-
   try {
     const parsed = await simpleParser(stream);
     const { from, attachments } = parsed;
@@ -148,7 +132,7 @@ async function handleEmailProcessing(stream, uid, emailsProcessed) {
       if (err) {
         console.error(`Error marking email UID ${uid} as seen:`, err);
       } else {
-        console.log(`Marked email UID ${uid} as seen`);
+        console.log(`Marked email UID ${uid} as seen.`);
       }
     });
   } catch (error) {
@@ -156,7 +140,7 @@ async function handleEmailProcessing(stream, uid, emailsProcessed) {
   }
 }
 
-// Helper function to process attachments
+// Helper to process attachments
 async function processAttachments(attachments, emailOnly) {
   const attachmentPromises = attachments.map(async (att) => {
     try {
@@ -190,13 +174,14 @@ async function processAttachments(attachments, emailOnly) {
   return processedAttachments.filter(Boolean);
 }
 
+// Email sending function
 module.exports.sendEmail = asyncHandler(async (req, res) => {
   const { email, sujet, message, ordNumero } = req.body;
 
   if (!email || !message || !sujet) {
     return res
       .status(400)
-      .json({ error: "Email adresse, Sujet and message are required." });
+      .json({ error: "Email address, subject, and message are required." });
   }
 
   const context = {
