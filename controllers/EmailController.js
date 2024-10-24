@@ -1,4 +1,4 @@
-const Imap = require("node-imap");
+const Imap = require("imap");
 const { simpleParser } = require("mailparser");
 const asyncHandler = require("express-async-handler");
 const { uploadToFirebase } = require("../utils/firebase");
@@ -13,7 +13,7 @@ const imap = new Imap({
   tls: true,
   tlsOptions: { rejectUnauthorized: false },
   connTimeout: 30000,
-  debug: (msg) => console.log("[IMAP DEBUG]:", msg), 
+  debug: (msg) => console.log("[IMAP DEBUG]:", msg),
 });
 
 function openInbox(cb) {
@@ -24,11 +24,27 @@ module.exports.receiveEmail = async () => {
   let emailsProcessed = [];
 
   imap.once("ready", function () {
-    openInbox(async (err, box) => {
+    openInbox((err, box) => {
       if (err) {
         console.error("Error opening inbox:", err);
         return;
       }
+
+      // Set up a timer to send NOOP every 5 minutes to keep the connection alive
+      const noopInterval = setInterval(() => {
+        imap.noop((noopErr) => {
+          if (noopErr) {
+            console.error("Error sending NOOP:", noopErr);
+          } else {
+            console.log("NOOP sent successfully to keep the connection alive.");
+          }
+        });
+      }, 5 * 60 * 1000); // 5 minutes
+
+      imap.on("mail", (numNewMail) => {
+        console.log(`New mail received: ${numNewMail}`);
+        // You can add additional logic here if needed
+      });
 
       imap.search(["UNSEEN"], async (err, results) => {
         if (err) {
@@ -75,6 +91,7 @@ module.exports.receiveEmail = async () => {
           fetch.once("end", () => {
             console.log("Done fetching all messages");
             console.log("Emails Processed:", emailsProcessed);
+            clearInterval(noopInterval); // Clear the NOOP interval
             imap.end(); // Gracefully close connection after fetch
           });
         } catch (fetchError) {
@@ -86,30 +103,20 @@ module.exports.receiveEmail = async () => {
 
   imap.once("error", (err) => {
     console.error("IMAP error:", err);
-
-    // Handle ECONNRESET and other connection errors
+    // Reconnect on connection reset or timeout
     if (err.code === "ECONNRESET" || err.code === "ETIMEDOUT") {
       console.log("Reconnecting due to error...");
-      setTimeout(() => imap.connect(), 5000); // Retry after 5 seconds
+      setTimeout(() => imap.connect(), 5000);
     }
   });
 
   imap.once("end", () => {
     console.log("IMAP connection closed");
-    clearInterval(imap.idleInterval); // Ensure keep-alive is cleared
   });
 
-  // Enable keep-alive with Gmail
-  imap.idleInterval = setInterval(() => {
-    console.log("Sending NOOP to keep connection alive");
-    imap.noop(); // Sends NOOP command to keep the connection active
-  }, 30000); // Send every 30 seconds
-
-  // Connect to the IMAP server
   imap.connect();
 };
 
-// Helper function to process individual emails
 async function handleEmailProcessing(stream, uid, emailsProcessed) {
   if (!uid) {
     console.error("Cannot mark email as seen. UID is null.");
@@ -183,7 +190,6 @@ async function processAttachments(attachments, emailOnly) {
   return processedAttachments.filter(Boolean);
 }
 
-// Send Email Handler
 module.exports.sendEmail = asyncHandler(async (req, res) => {
   const { email, sujet, message, ordNumero } = req.body;
 
@@ -200,5 +206,5 @@ module.exports.sendEmail = asyncHandler(async (req, res) => {
   };
 
   await sendEmail(email, sujet, "response", context);
-  res.status(201).json("La message a été envoyer avec succès.");
+  res.status(201).json("Le message a été envoyé avec succès.");
 });

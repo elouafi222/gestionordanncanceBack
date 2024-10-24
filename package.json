@@ -12,6 +12,7 @@
     "firebase": "^10.13.1",
     "firebase-admin": "^12.4.0",
     "fs": "^0.0.1-security",
+    "imap": "^0.8.19",
     "joi": "^17.13.3",
     "joi-password-complexity": "^5.2.0",
     "jsonwebtoken": "^9.0.2",
