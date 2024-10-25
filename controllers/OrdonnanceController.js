@@ -1221,17 +1221,18 @@ module.exports.deleteOrdonnance = asyncHandler(async (req, res) => {
 
 module.exports.processRenewals = asyncHandler(async (req, res) => {
   try {
-    const todayDate = moment(new Date()).startOf("day").toDate();
-
-    console.log(`Processing renewals for ${todayDate}`);
+    const startOfDay = moment().startOf("day").toDate();
+    const endOfDay = moment().endOf("day").toDate();
+    console.log(
+      `Processing renewals for ${moment(startOfDay).format("YYYY-MM-DD")}`
+    );
 
     const ordonnancesToRenew = await ordonnance.find({
-      dateRenouvellement: { $gte: todayDate },
+      dateRenouvellement: { $lte: endOfDay, $gte: startOfDay },
       times: { $gt: 0 },
       type: "renouveller",
       status: { $ne: "3" },
     });
-    console.log("ordonnancesToRenew : " + ordonnancesToRenew);
     const updatedOrdonnances = [];
 
     for (const ord of ordonnancesToRenew) {
@@ -1245,6 +1246,7 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
       }
       const nextRenouvellementDate = moment(ord.dateRenouvellement)
         .add(ord.periodeRenouvellement, "days")
+        .startOf("day")
         .toDate();
 
       ord.dateRenouvellement = nextRenouvellementDate;
