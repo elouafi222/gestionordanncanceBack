@@ -1224,7 +1224,7 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
     const startOfDay = moment().startOf("day").toDate();
     const endOfDay = moment().endOf("day").toDate();
     console.log(
-      `Processing renewals for ${moment(startOfDay).format("YYYY-MM-DD")}`
+      `Processing renewals for ${moment(startOfDay)}`
     );
 
     const ordonnancesToRenew = await ordonnance.find({
