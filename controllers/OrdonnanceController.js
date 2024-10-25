@@ -1221,24 +1221,17 @@ module.exports.deleteOrdonnance = asyncHandler(async (req, res) => {
 
 module.exports.processRenewals = asyncHandler(async (req, res) => {
   try {
-    const guadeloupeMidnight = moment()
-      .tz("America/Guadeloupe")
-      .startOf("day")
-      .toDate();
+    const todayDate = moment(new Date()).startOf("day").toDate();
 
-    console.log(
-      `Processing renewals for ${moment(guadeloupeMidnight).format(
-        "YYYY-MM-DD"
-      )} in Guadeloupe time`
-    );
+    console.log(`Processing renewals for ${todayDate}`);
 
     const ordonnancesToRenew = await ordonnance.find({
-      dateRenouvellement: { $lte: guadeloupeMidnight },
+      dateRenouvellement: { $gte: todayDate },
       times: { $gt: 0 },
       type: "renouveller",
       status: { $ne: "3" },
     });
-
+    console.log("ordonnancesToRenew : " + ordonnancesToRenew);
     const updatedOrdonnances = [];
 
     for (const ord of ordonnancesToRenew) {
@@ -1251,9 +1244,7 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
         await lastCycle.save();
       }
       const nextRenouvellementDate = moment(ord.dateRenouvellement)
-        .tz("America/Guadeloupe")
         .add(ord.periodeRenouvellement, "days")
-        .startOf("day")
         .toDate();
 
       ord.dateRenouvellement = nextRenouvellementDate;
@@ -1520,8 +1511,11 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
   const countDujourResult = await ordonnance.aggregate(CountDujour);
   const totalCountDujour =
     countDujourResult.length > 0 ? countDujourResult[0].totalCount : 0;
-
+  let matchQuery = {
+    status: { $nin: ["3"] },
+  };
   const CountEnRetard = [
+    { $match: matchQuery },
     {
       $lookup: {
         from: "users",
@@ -1637,6 +1631,7 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
     },
     { $count: "totalCount" },
   ];
+
   const countEnretardResult = await ordonnance.aggregate(CountEnRetard);
   const totalCountEnAttent =
     countEnretardResult.length > 0 ? countEnretardResult[0].totalCount : 0;
