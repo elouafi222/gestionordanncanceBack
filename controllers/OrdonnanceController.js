@@ -1270,9 +1270,9 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
       });
       await noteNew.save();
 
-      if (ord.times === 0) {
-        ord.status = "3";
-      }
+      // if (ord.times === 0) {
+      //   ord.status = "3";
+      // }
 
       await ord.save();
       updatedOrdonnances.push(ord);
