@@ -7,9 +7,7 @@ const {
 } = require("../utils/firebase");
 const { message } = require("../models/message");
 const moment = require("moment-timezone");
-// const moment = require("moment");
 const { note } = require("../models/note");
-const { user } = require("../models/user");
 const sendEmail = require("../utils/sendEmail");
 const { cycle: Cycle } = require("../models/cycle");
 module.exports.getOrdonnances = asyncHandler(async (req, res) => {
@@ -443,156 +441,13 @@ module.exports.getTodayOrdonnances = asyncHandler(async (req, res) => {
       $limit: parseInt(per_page),
     },
   ];
-  const CountPipeline = [
-    { $match: matchQuery },
-    {
-      $lookup: {
-        from: "users",
-        localField: "collabId",
-        foreignField: "_id",
-        as: "collaborator",
-      },
-    },
-    {
-      $unwind: {
-        path: "$collaborator",
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $lookup: {
-        from: "notes",
-        localField: "_id",
-        foreignField: "ordonnanceId",
-        as: "notes",
-      },
-    },
-    {
-      $lookup: {
-        from: "cycles",
-        localField: "_id",
-        foreignField: "ordonnanceId",
-        as: "cycles",
-      },
-    },
-    {
-      $project: {
-        uniqueNotes: {
-          $cond: {
-            if: { $eq: ["$type", "unique"] },
-            then: "$notes",
-            else: {
-              $cond: {
-                if: { $eq: ["$type", "renouveller"] },
-                then: {
-                  globalNotes: {
-                    $filter: {
-                      input: "$notes",
-                      as: "note",
-                      cond: {
-                        $and: [
-                          { $eq: ["$$note.type", "global"] },
-                          { $eq: ["$$note.ordonnanceId", "$_id"] },
-                        ],
-                      },
-                    },
-                  },
-                },
-                else: [],
-              },
-            },
-          },
-        },
-        cycles: {
-          $map: {
-            input: {
-              $filter: {
-                input: "$cycles",
-                as: "cycle",
-                cond: { $ne: ["$$cycle.status", "null"] },
-              },
-            },
-            as: "cycle",
-            in: {
-              cycleId: "$$cycle._id",
-              cycleNumber: "$$cycle.cycleNumber",
-              cycleStatus: "$$cycle.status",
-              cycleCreatedAt: "$$cycle.createdAt",
-              cycleNotes: {
-                $filter: {
-                  input: "$notes",
-                  as: "note",
-                  cond: {
-                    $and: [
-                      { $eq: ["$$note.cycleId", "$$cycle._id"] },
-                      { $eq: ["$$note.type", "cycle"] },
-                    ],
-                  },
-                },
-              },
-              fullName: {
-                $concat: [
-                  "$cycleCollaborator.prenom",
-                  " ",
-                  "$cycleCollaborator.nom",
-                ],
-              },
-              isTodayCycle: {
-                $cond: {
-                  if: {
-                    $and: [
-                      { $gte: ["$$cycle.createdAt", today] },
-                      { $lte: ["$$cycle.createdAt", endOfToday] },
-                      { $in: ["$$cycle.status", ["1", "4"]] },
-                    ],
-                  },
-                  then: true,
-                  else: false,
-                },
-              },
-            },
-          },
-        },
-        hasTodayCycle: {
-          $cond: {
-            if: { $eq: ["$type", "unique"] },
-            then: {
-              $and: [
-                { $gte: ["$dateReception", today] },
-                { $lte: ["$dateReception", endOfToday] },
-              ],
-            },
-            else: {
-              $anyElementTrue: {
-                $map: {
-                  input: "$cycles",
-                  as: "cycle",
-                  in: {
-                    $and: [
-                      { $gte: ["$$cycle.createdAt", today] },
-                      { $lte: ["$$cycle.createdAt", endOfToday] },
-                      { $in: ["$$cycle.status", ["1", "4"]] },
-                    ],
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-    {
-      $match: {
-        hasTodayCycle: true,
-      },
-    },
-    {
-      $count: "totalCount",
-    },
-  ];
+
   try {
     const ordonnances = await ordonnance.aggregate(pipeline);
-    const countResult = await ordonnance.aggregate(CountPipeline);
+    const countResult = await ordonnance.aggregate([
+      ...pipeline.slice(0, -2),
+      { $count: "totalCount" },
+    ]);
     const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
 
     res.status(200).json({ totalCount, ordonnances });
@@ -744,7 +599,7 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
     },
     {
       $match: {
-        "lastCycle.cycleStatus": "3",
+        $or: [{ status: "4" }, { "lastCycle.cycleStatus": "3" }],
       },
     },
     {
@@ -758,134 +613,14 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
     },
   ];
 
-  const CountPipeline = [
-    { $match: matchQuery },
-    {
-      $lookup: {
-        from: "users",
-        localField: "collabId",
-        foreignField: "_id",
-        as: "collaborator",
-      },
-    },
-    {
-      $unwind: {
-        path: "$collaborator",
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $lookup: {
-        from: "notes",
-        localField: "_id",
-        foreignField: "ordonnanceId",
-        as: "notes",
-      },
-    },
-    {
-      $lookup: {
-        from: "cycles",
-        localField: "_id",
-        foreignField: "ordonnanceId",
-        as: "cycles",
-      },
-    },
-    {
-      $lookup: {
-        from: "users",
-        localField: "cycles.collabId",
-        foreignField: "_id",
-        as: "cycleCollaborator",
-      },
-    },
-    {
-      $unwind: {
-        path: "$cycleCollaborator",
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
-      $project: {
-        numero: 1,
-        nom: 1,
-        prenom: 1,
-        phone: 1,
-        url: 1,
-        email: 1,
-        status: 1,
-        dateReception: 1,
-        updatedAt: 1,
-        isMore500: 1,
-        livraison: 1,
-        adresse: 1,
-        from: 1,
-        collabId: 1,
-        type: 1,
-        dateRenouvellement: 1,
-        times: 1,
-        debutTime: 1,
-        periodeRenouvellement: 1,
-        dateTreatement: 1,
-        "collaborator.nom": 1,
-        "collaborator.prenom": 1,
-        cycles: {
-          $map: {
-            input: {
-              $filter: {
-                input: "$cycles",
-                as: "cycle",
-                cond: { $ne: ["$$cycle.status", "null"] },
-              },
-            },
-            as: "cycle",
-            in: {
-              cycleId: "$$cycle._id",
-              cycleNumber: "$$cycle.cycleNumber",
-              cycleStatus: "$$cycle.status",
-              cycleCreatedAt: "$$cycle.createdAt",
-              cycleNotes: {
-                $filter: {
-                  input: "$notes",
-                  as: "note",
-                  cond: {
-                    $and: [
-                      { $eq: ["$$note.cycleId", "$$cycle._id"] },
-                      { $eq: ["$$note.type", "cycle"] },
-                    ],
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-    {
-      $addFields: {
-        lastCycle: { $arrayElemAt: [{ $slice: ["$cycles", -1] }, 0] },
-      },
-    },
-    {
-      $match: {
-        "lastCycle.cycleStatus": "3",
-      },
-    },
-    {
-      $sort: { numero: -1 },
-    },
+  const ordonnances = await ordonnance.aggregate(pipeline);
+  const countResult = await ordonnance.aggregate([
+    ...pipeline.slice(0, -2),
     { $count: "totalCount" },
-  ];
+  ]);
+  const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
 
-  try {
-    const ordonnances = await ordonnance.aggregate(pipeline);
-    const countResult = await ordonnance.aggregate(CountPipeline);
-    const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
-
-    res.status(200).json({ totalCount, ordonnances });
-  } catch (error) {
-    console.error("Error fetching ordonnances:", error);
-    res.status(500).json({ message: "Internal Server Error" });
-  }
+  res.status(200).json({ totalCount, ordonnances });
 });
 module.exports.addOrdonnace = asyncHandler(async (req, res) => {
   try {
@@ -896,7 +631,6 @@ module.exports.addOrdonnace = asyncHandler(async (req, res) => {
     const today = new Date();
     if (req.body.type === "renouveller") {
       nextRenouvellementDate = moment(today)
-        .tz("America/Guadeloupe")
         .add(req.body.periodeRenouvellement, "days")
         .toDate();
     }
@@ -939,7 +673,7 @@ module.exports.addOrdonnace = asyncHandler(async (req, res) => {
         dateTreatement: new Date(),
         cycleNumber: 1,
         status: "1",
-        dateTreatement: null,
+        dateTreatement: new Date(),
       });
       await cycle.save();
       const globalNote = new note({
@@ -962,7 +696,7 @@ module.exports.addOrdonnace = asyncHandler(async (req, res) => {
         collabId: req.body.collabId ? req.body.collabId : null,
         cycleNumber: 1,
         status: "null",
-        dateTreatement: null,
+        dateTreatement: new Date(),
       });
       await cycle.save();
 
@@ -987,6 +721,7 @@ module.exports.updateOrdnnance = asyncHandler(async (req, res) => {
   }
 
   const previousType = ordo.type;
+  const previousPeriode = ordo.periodeRenouvellement;
 
   const updatedFields = {
     nom: req.body.nom,
@@ -1006,6 +741,18 @@ module.exports.updateOrdnnance = asyncHandler(async (req, res) => {
     times: req.body.times,
   };
 
+  if (
+    req.body.type === "renouveller" &&
+    req.body.periodeRenouvellement &&
+    req.body.periodeRenouvellement !== previousPeriode
+  ) {
+    const nextRenouvellementDate = moment(new Date())
+      .add(req.body.periodeRenouvellement, "days")
+      .startOf("day")
+      .toDate();
+    updatedFields.dateRenouvellement = nextRenouvellementDate;
+  }
+
   const updateOrdo = await ordonnance.findByIdAndUpdate(
     req.params.id,
     updatedFields,
@@ -1014,6 +761,7 @@ module.exports.updateOrdnnance = asyncHandler(async (req, res) => {
   if (!updateOrdo) {
     return res.status(500).json({ message: "Failed to update ordonnance." });
   }
+
   if (
     req.body.type === "renouveller" &&
     previousType === "renouveller" &&
@@ -1223,9 +971,7 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
   try {
     const startOfDay = moment().startOf("day").toDate();
     const endOfDay = moment().endOf("day").toDate();
-    console.log(
-      `Processing renewals for ${moment(startOfDay)}`
-    );
+    console.log(`Processing renewals for ${moment(startOfDay)}`);
 
     const ordonnancesToRenew = await ordonnance.find({
       dateRenouvellement: { $lte: endOfDay, $gte: startOfDay },
@@ -1516,7 +1262,8 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
   let matchQuery = {
     status: { $nin: ["3"] },
   };
-  const CountEnRetard = [
+
+  const pipelineEnretard = [
     { $match: matchQuery },
     {
       $lookup: {
@@ -1625,18 +1372,18 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
     },
     {
       $match: {
-        "lastCycle.cycleStatus": "3",
+        $or: [{ status: "4" }, { "lastCycle.cycleStatus": "3" }],
       },
     },
-    {
-      $sort: { numero: -1 },
-    },
-    { $count: "totalCount" },
   ];
 
-  const countEnretardResult = await ordonnance.aggregate(CountEnRetard);
+  const countResultEnretard = await ordonnance.aggregate([
+    ...pipelineEnretard,
+    { $count: "totalCount" },
+  ]);
   const totalCountEnAttent =
-    countEnretardResult.length > 0 ? countEnretardResult[0].totalCount : 0;
+    countResultEnretard.length > 0 ? countResultEnretard[0].totalCount : 0;
+
   const countToday = [
     // {
     //   $match: {
