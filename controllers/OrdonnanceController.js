@@ -870,18 +870,23 @@ module.exports.addOrdonnanceCollab = asyncHandler(async (req, res) => {
     );
 
     if (updateOrdo && updateOrdo.type === "renouveller") {
-      await Cycle.updateMany(
-        { ordonnanceId: updateOrdo._id },
-        { $set: { collabId: req.user.id } }
-      );
+      const latestCycle = await Cycle.findOne({ ordonnanceId: updateOrdo._id })
+        .sort({ createdAt: -1 })
+        .limit(1);
+
+      if (latestCycle) {
+        latestCycle.collabId = req.user.id;
+        await latestCycle.save();
+      }
     }
 
     res.status(200).json(updateOrdo);
   } catch (error) {
-    console.error(error);
-    res
-      .status(500)
-      .json({ message: "Erreur du serveur. Veuillez réessayer plus tard." });
+    console.error("Error in addOrdonnanceCollab:", error);
+    res.status(500).json({
+      message: "Erreur du serveur. Veuillez réessayer plus tard.",
+      error: error.message,
+    });
   }
 });
 module.exports.changeStatusOrdnnance = asyncHandler(async (req, res) => {
