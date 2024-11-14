@@ -12,7 +12,7 @@ const imapConfig = {
   port: 993,
   tls: true,
   tlsOptions: { rejectUnauthorized: false },
-  connTimeout: 30000,
+  connTimeout: 60000,//30000
 };
 
 const imap = new Imap(imapConfig);
@@ -20,11 +20,23 @@ const imap = new Imap(imapConfig);
 function openInbox(cb) {
   imap.openBox("INBOX", false, cb);
 }
+let reconnectAttempts = 0;
+const maxReconnectAttempts = 5;
 
 function reconnectIMAP() {
-  console.log("Attempting to reconnect...");
-  setTimeout(() => imap.connect(), 5000);
+  if (reconnectAttempts < maxReconnectAttempts) {
+    console.log("Attempting to reconnect...");
+    reconnectAttempts++;
+    setTimeout(() => imap.connect(), 5000);
+  } else {
+    console.error("Maximum reconnect attempts reached. Connection failed.");
+  }
 }
+
+// function reconnectIMAP() {
+//   console.log("Attempting to reconnect...");
+//   setTimeout(() => imap.connect(), 5000);
+// }
 
 module.exports.receiveEmail = async () => {
   let emailsProcessed = [];

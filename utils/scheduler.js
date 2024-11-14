@@ -6,7 +6,7 @@ const {
   updateCylces,
 } = require("../controllers/OrdonnanceController");
 
-cron.schedule("* * * * *", () => {
+cron.schedule("*/5 * * * *", () => {
   console.log("Running scheduled task to receive emails...");
   receiveEmail();
 });
