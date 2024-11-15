@@ -656,7 +656,6 @@ module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
     endOfDay.setHours(23, 59, 59, 999);
     matchQuery.dateReception = { $gte: startOfDay, $lte: endOfDay };
   }
-
   const pipeline = [
     { $match: matchQuery },
     {
@@ -689,7 +688,7 @@ module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
         as: "cycles",
       },
     },
-    // Additional $match stage to filter ordonnances with at least one cycle of status "3"
+    // Match ordonnances that have cycles with status 3
     {
       $match: {
         cycles: {
@@ -709,6 +708,53 @@ module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
       $unwind: {
         path: "$cycleCollaborator",
         preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $addFields: {
+        // Filter and sort cycles where status is '3' and keep only the latest one per cycleNumber
+        cycles: {
+          $reduce: {
+            input: {
+              $sortArray: {
+                input: {
+                  $filter: {
+                    input: "$cycles",
+                    as: "cycle",
+                    cond: { $eq: ["$$cycle.status", "3"] }, // Filter cycles with status "3"
+                  },
+                },
+                sortBy: { createdAt: -1 }, // Sort filtered cycles by createdAt descending
+              },
+            },
+            initialValue: [],
+            in: {
+              $concatArrays: [
+                "$$value",
+                {
+                  $cond: [
+                    {
+                      $not: {
+                        $in: [
+                          "$$this.cycleNumber", // Check if cycleNumber already exists in the accumulated array
+                          {
+                            $map: {
+                              input: "$$value",
+                              as: "v",
+                              in: "$$v.cycleNumber", // Extract cycleNumber from existing cycles
+                            },
+                          },
+                        ],
+                      },
+                    },
+                    ["$$this"], // If not already in the accumulator, add this cycle
+                    [], // Otherwise, skip this cycle
+                  ],
+                },
+              ],
+            },
+          },
+        },
       },
     },
     {
@@ -737,13 +783,7 @@ module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
         "collaborator.prenom": 1,
         cycles: {
           $map: {
-            input: {
-              $filter: {
-                input: "$cycles",
-                as: "cycle",
-                cond: { $eq: ["$$cycle.status", "3"] },
-              },
-            },
+            input: "$cycles",
             as: "cycle",
             in: {
               cycleId: "$$cycle._id",
@@ -777,6 +817,7 @@ module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
       $limit: parseInt(per_page),
     },
   ];
+  
 
   const ordonnances = await ordonnance.aggregate(pipeline);
   const countResult = await ordonnance.aggregate([
