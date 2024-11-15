@@ -260,6 +260,7 @@ module.exports.getNotesByOrdId = asyncHandler(async (req, res) => {
           },
         },
       },
+      { $sort: { "cycles.createdAt": -1 } },
     ]);
 
     res.status(200).json(result[0]);
@@ -268,3 +269,185 @@ module.exports.getNotesByOrdId = asyncHandler(async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
+module.exports.getNotesOfRetardCyclesByOrdId = asyncHandler(
+  async (req, res) => {
+    const { ordoId } = req.params;
+
+    try {
+      const result = await ordonnance.aggregate([
+        { $match: { _id: new mongoose.Types.ObjectId(ordoId) } },
+        {
+          $lookup: {
+            from: "cycles",
+            localField: "_id",
+            foreignField: "ordonnanceId",
+            as: "cycles",
+          },
+        },
+        {
+          $lookup: {
+            from: "notes",
+            localField: "_id",
+            foreignField: "ordonnanceId",
+            as: "notes",
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "cycles.collabId",
+            foreignField: "_id",
+            as: "collaborators",
+          },
+        },
+        {
+          $project: {
+            _id: 1,
+            type: 1,
+            uniqueNotes: {
+              $cond: {
+                if: { $eq: ["$type", "unique"] },
+                then: {
+                  $arrayElemAt: [
+                    {
+                      $filter: {
+                        input: { $ifNull: ["$notes", []] },
+                        as: "note",
+                        cond: {
+                          $and: [
+                            { $eq: ["$$note.type", "global"] },
+                            { $eq: ["$$note.ordonnanceId", "$_id"] },
+                          ],
+                        },
+                      },
+                    },
+                    0,
+                  ],
+                },
+                else: {
+                  $filter: {
+                    input: { $ifNull: ["$notes", []] },
+                    as: "note",
+                    cond: {
+                      $and: [
+                        { $eq: ["$$note.type", "global"] },
+                        { $eq: ["$$note.ordonnanceId", "$_id"] },
+                      ],
+                    },
+                  },
+                },
+              },
+            },
+            cycles: {
+              $cond: {
+                if: { $eq: ["$type", "renouveller"] },
+                then: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: { $ifNull: ["$cycles", []] },
+                        as: "cycle",
+                        cond: { $eq: ["$$cycle.status", "3"] },
+                      },
+                    },
+                    as: "cycle",
+                    in: {
+                      cycleId: "$$cycle._id",
+                      dateTreatement: "$$cycle.dateTreatement",
+                      createdAt: "$$cycle.createdAt",
+                      cycleNumber: "$$cycle.cycleNumber",
+                      cycleStatus: "$$cycle.status",
+                      cycleNotes: {
+                        $filter: {
+                          input: { $ifNull: ["$notes", []] },
+                          as: "note",
+                          cond: {
+                            $and: [
+                              { $eq: ["$$note.cycleId", "$$cycle._id"] },
+                              { $eq: ["$$note.type", "cycle"] },
+                            ],
+                          },
+                        },
+                      },
+                      fullName: {
+                        $concat: [
+                          {
+                            $arrayElemAt: [
+                              "$collaborators.prenom",
+                              {
+                                $indexOfArray: [
+                                  "$collaborators._id",
+                                  "$$cycle.collabId",
+                                ],
+                              },
+                            ],
+                          },
+                          " ",
+                          {
+                            $arrayElemAt: [
+                              "$collaborators.nom",
+                              {
+                                $indexOfArray: [
+                                  "$collaborators._id",
+                                  "$$cycle.collabId",
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    },
+                  },
+                },
+                else: [],
+              },
+            },
+          },
+        },
+        {
+          $addFields: {
+            cycles: {
+              $reduce: {
+                input: {
+                  $sortArray: { input: "$cycles", sortBy: { createdAt: -1 } },
+                },
+                initialValue: [],
+                in: {
+                  $concatArrays: [
+                    "$$value",
+                    {
+                      $cond: [
+                        {
+                          $not: {
+                            $in: [
+                              "$$this.cycleNumber",
+                              {
+                                $map: {
+                                  input: "$$value",
+                                  as: "v",
+                                  in: "$$v.cycleNumber",
+                                },
+                              },
+                            ],
+                          },
+                        },
+                        ["$$this"],
+                        [],
+                      ],
+                    },
+                  ],
+                },
+              },
+            },
+          },
+        },
+        { $sort: { "cycles.createdAt": -1 } },
+      ]);
+
+      res.status(200).json(result[0]);
+    } catch (error) {
+      console.error("Error fetching ordonnance with cycles and notes:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  }
+);

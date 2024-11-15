@@ -622,6 +622,171 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
 
   res.status(200).json({ totalCount, ordonnances });
 });
+module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
+  const { page, search, status, date, numero, type } = req.query;
+  let matchQuery = {
+    status: { $nin: ["3", "4"] },
+    type: "renouveller",
+  };
+  if (search) {
+    matchQuery.$or.push(
+      { nom: { $regex: search, $options: "i" } },
+      { prenom: { $regex: search, $options: "i" } },
+      { phone: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } }
+    );
+  }
+
+  if (status) {
+    matchQuery.status = status;
+  }
+
+  if (type) {
+    matchQuery.type = type;
+  }
+
+  if (numero) {
+    matchQuery.numero = parseInt(numero);
+  }
+
+  if (date) {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    matchQuery.dateReception = { $gte: startOfDay, $lte: endOfDay };
+  }
+
+  const pipeline = [
+    { $match: matchQuery },
+    {
+      $lookup: {
+        from: "users",
+        localField: "collabId",
+        foreignField: "_id",
+        as: "collaborator",
+      },
+    },
+    {
+      $unwind: {
+        path: "$collaborator",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $lookup: {
+        from: "notes",
+        localField: "_id",
+        foreignField: "ordonnanceId",
+        as: "notes",
+      },
+    },
+    {
+      $lookup: {
+        from: "cycles",
+        localField: "_id",
+        foreignField: "ordonnanceId",
+        as: "cycles",
+      },
+    },
+    // Additional $match stage to filter ordonnances with at least one cycle of status "3"
+    {
+      $match: {
+        cycles: {
+          $elemMatch: { status: "3" },
+        },
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "cycles.collabId",
+        foreignField: "_id",
+        as: "cycleCollaborator",
+      },
+    },
+    {
+      $unwind: {
+        path: "$cycleCollaborator",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        numero: 1,
+        nom: 1,
+        prenom: 1,
+        phone: 1,
+        url: 1,
+        email: 1,
+        status: 1,
+        dateReception: 1,
+        updatedAt: 1,
+        isMore500: 1,
+        livraison: 1,
+        adresse: 1,
+        from: 1,
+        collabId: 1,
+        type: 1,
+        dateRenouvellement: 1,
+        times: 1,
+        debutTime: 1,
+        periodeRenouvellement: 1,
+        dateTreatement: 1,
+        "collaborator.nom": 1,
+        "collaborator.prenom": 1,
+        cycles: {
+          $map: {
+            input: {
+              $filter: {
+                input: "$cycles",
+                as: "cycle",
+                cond: { $eq: ["$$cycle.status", "3"] },
+              },
+            },
+            as: "cycle",
+            in: {
+              cycleId: "$$cycle._id",
+              cycleNumber: "$$cycle.cycleNumber",
+              cycleStatus: "$$cycle.status",
+              cycleCreatedAt: "$$cycle.createdAt",
+              cycleNotes: {
+                $filter: {
+                  input: "$notes",
+                  as: "note",
+                  cond: {
+                    $and: [
+                      { $eq: ["$$note.cycleId", "$$cycle._id"] },
+                      { $eq: ["$$note.type", "cycle"] },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    {
+      $sort: { numero: -1 },
+    },
+    {
+      $skip: (page - 1) * parseInt(per_page),
+    },
+    {
+      $limit: parseInt(per_page),
+    },
+  ];
+
+  const ordonnances = await ordonnance.aggregate(pipeline);
+  const countResult = await ordonnance.aggregate([
+    ...pipeline.slice(0, -2),
+    { $count: "totalCount" },
+  ]);
+  const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
+
+  res.status(200).json({ totalCount, ordonnances });
+});
 module.exports.addOrdonnace = asyncHandler(async (req, res) => {
   try {
     const file = req.file;
@@ -1034,37 +1199,14 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
     console.error("Error processing renewals:", error);
   }
 });
-const checkAndUpdateStatus = async (ordonnance) => {
-  if (ordonnance.type === "renouveller") {
-    const now = new Date();
-    const lastRenewalDate = ordonnance.dateRenouvellement;
-    const renewalPeriodDays = ordonnance.periodeRenouvellement;
-    const remainingRenewals = ordonnance.times;
-
-    const nextRenewalDate = new Date(lastRenewalDate);
-    nextRenewalDate.setDate(lastRenewalDate.getDate() + renewalPeriodDays);
-    if (now > nextRenewalDate || remainingRenewals <= 0) {
-      ordonnance.status = "3";
-      ordonnance.dateRenouvellement = null;
-      console.log("Ordonnance is no longer renewable and has been terminated.");
-    } else {
-      ordonnance.status = "2";
-      ordonnance.dateRenouvellement = nextRenewalDate;
-      console.log("Ordonnance is still renewable.");
-    }
-    await ordonnance.save();
-  }
-};
 
 module.exports.updateEnAttent = asyncHandler(async (req, res) => {
   try {
-    const now = moment();
+    const startOfToday = moment().startOf("day").toDate();
     const ordonnancesToUpdate = await ordonnance.find({
       type: "unique",
       status: "1",
-      dateReception: {
-        $lte: now.subtract(24, "hours").toDate(),
-      },
+      dateReception: { $lt: startOfToday },
     });
 
     if (ordonnancesToUpdate.length === 0) {
@@ -1083,12 +1225,10 @@ module.exports.updateEnAttent = asyncHandler(async (req, res) => {
 });
 module.exports.updateCylces = asyncHandler(async (req, res) => {
   try {
-    const now = moment();
+    const startOfToday = moment().startOf("day").toDate();
     const cyclesToUpdate = await Cycle.find({
       status: "1",
-      createdAt: {
-        $lte: moment(now).subtract(24, "hours").toDate(),
-      },
+      createdAt: { $lt: startOfToday },
     });
 
     if (cyclesToUpdate.length === 0) {
@@ -1264,12 +1404,12 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
   const countDujourResult = await ordonnance.aggregate(CountDujour);
   const totalCountDujour =
     countDujourResult.length > 0 ? countDujourResult[0].totalCount : 0;
-  let matchQuery = {
+  let matchQueryEnRetard = {
     status: { $nin: ["3"] },
   };
 
   const pipelineEnretard = [
-    { $match: matchQuery },
+    { $match: matchQueryEnRetard },
     {
       $lookup: {
         from: "users",
@@ -1388,6 +1528,131 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
   ]);
   const totalCountEnAttent =
     countResultEnretard.length > 0 ? countResultEnretard[0].totalCount : 0;
+  const matchQueryCycleEnRetard = {
+    status: { $nin: ["3", "4"] },
+    type: "renouveller",
+  };
+
+  const pipelineCycleEnRetard = [
+    { $match: matchQueryCycleEnRetard },
+    {
+      $lookup: {
+        from: "users",
+        localField: "collabId",
+        foreignField: "_id",
+        as: "collaborator",
+      },
+    },
+    {
+      $unwind: {
+        path: "$collaborator",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $lookup: {
+        from: "notes",
+        localField: "_id",
+        foreignField: "ordonnanceId",
+        as: "notes",
+      },
+    },
+    {
+      $lookup: {
+        from: "cycles",
+        localField: "_id",
+        foreignField: "ordonnanceId",
+        as: "cycles",
+      },
+    },
+    // Additional $match stage to filter ordonnances with at least one cycle of status "3"
+    {
+      $match: {
+        cycles: {
+          $elemMatch: { status: "3" },
+        },
+      },
+    },
+    {
+      $lookup: {
+        from: "users",
+        localField: "cycles.collabId",
+        foreignField: "_id",
+        as: "cycleCollaborator",
+      },
+    },
+    {
+      $unwind: {
+        path: "$cycleCollaborator",
+        preserveNullAndEmptyArrays: true,
+      },
+    },
+    {
+      $project: {
+        numero: 1,
+        nom: 1,
+        prenom: 1,
+        phone: 1,
+        url: 1,
+        email: 1,
+        status: 1,
+        dateReception: 1,
+        updatedAt: 1,
+        isMore500: 1,
+        livraison: 1,
+        adresse: 1,
+        from: 1,
+        collabId: 1,
+        type: 1,
+        dateRenouvellement: 1,
+        times: 1,
+        debutTime: 1,
+        periodeRenouvellement: 1,
+        dateTreatement: 1,
+        "collaborator.nom": 1,
+        "collaborator.prenom": 1,
+        cycles: {
+          $map: {
+            input: {
+              $filter: {
+                input: "$cycles",
+                as: "cycle",
+                cond: { $eq: ["$$cycle.status", "3"] },
+              },
+            },
+            as: "cycle",
+            in: {
+              cycleId: "$$cycle._id",
+              cycleNumber: "$$cycle.cycleNumber",
+              cycleStatus: "$$cycle.status",
+              cycleCreatedAt: "$$cycle.createdAt",
+              cycleNotes: {
+                $filter: {
+                  input: "$notes",
+                  as: "note",
+                  cond: {
+                    $and: [
+                      { $eq: ["$$note.cycleId", "$$cycle._id"] },
+                      { $eq: ["$$note.type", "cycle"] },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  ];
+
+  const countResultCycleEnRetard = await ordonnance.aggregate([
+    ...pipelineCycleEnRetard,
+    { $count: "totalCount" },
+  ]);
+  const totalCountCycleEnRetard =
+    countResultCycleEnRetard.length > 0
+      ? countResultCycleEnRetard[0].totalCount
+      : 0;
 
   const countToday = [
     // {
@@ -1555,6 +1820,7 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
   const totalCountMessage = await message.countDocuments();
 
   res.status(200).json({
+    cycleEnRetard: totalCountCycleEnRetard,
     enAttent: totalCountEnAttent,
     messages: totalCountMessage,
     enCours: totalCountEnCours,

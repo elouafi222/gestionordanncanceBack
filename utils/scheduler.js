@@ -6,7 +6,7 @@ const {
   updateCylces,
 } = require("../controllers/OrdonnanceController");
 
-cron.schedule("*/5 * * * *", () => {
+cron.schedule("* * * * *", () => {
   console.log("Running scheduled task to receive emails...");
   receiveEmail();
 });
@@ -19,7 +19,7 @@ cron.schedule("* * * * *", async () => {
   console.log("Running scheduled task to updated EN ATTENTE(ordonnances) ...");
   updateEnAttent();
 });
-cron.schedule("0 * * * *", async () => {
+cron.schedule("* * * * *", async () => {
   console.log("Running scheduled task to updated EN ATTENTE(cycles) ...");
   updateCylces();
 });

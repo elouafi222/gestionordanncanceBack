@@ -10,6 +10,7 @@ const {
   changeStatusCycle,
   getTodayOrdonnances,
   getEnRetardOrdonnances,
+  getEnRetardCycles,
 } = require("../controllers/OrdonnanceController");
 const validateId = require("../middelwares/validateId");
 const { verifyTokenAndAdminAndCollab } = require("../middelwares/verifyToken");
@@ -23,6 +24,9 @@ router.route("/today").get(verifyTokenAndAdminAndCollab, getTodayOrdonnances);
 router
   .route("/enRetard")
   .get(verifyTokenAndAdminAndCollab, getEnRetardOrdonnances);
+router
+  .route("/enRetardCycles")
+  .get(verifyTokenAndAdminAndCollab, getEnRetardCycles);
 router
   .route("/:id")
   .put(validateId, verifyTokenAndAdminAndCollab, updateOrdnnance)
