@@ -217,14 +217,13 @@ module.exports.getTodayOrdonnances = asyncHandler(async (req, res) => {
     status: { $nin: ["3", "4"] },
   };
   if (search) {
-    matchQuery.$or.push(
+    matchQuery.$or = [
       { nom: { $regex: search, $options: "i" } },
       { prenom: { $regex: search, $options: "i" } },
       { phone: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } }
-    );
+      { email: { $regex: search, $options: "i" } },
+    ];
   }
-
   if (status) {
     matchQuery.status = status;
   }
@@ -462,12 +461,12 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
     status: { $nin: ["3"] },
   };
   if (search) {
-    matchQuery.$or.push(
+    matchQuery.$or = [
       { nom: { $regex: search, $options: "i" } },
       { prenom: { $regex: search, $options: "i" } },
       { phone: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } }
-    );
+      { email: { $regex: search, $options: "i" } },
+    ];
   }
 
   if (status) {
@@ -629,14 +628,13 @@ module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
     type: "renouveller",
   };
   if (search) {
-    matchQuery.$or.push(
+    matchQuery.$or = [
       { nom: { $regex: search, $options: "i" } },
       { prenom: { $regex: search, $options: "i" } },
       { phone: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } }
-    );
+      { email: { $regex: search, $options: "i" } },
+    ];
   }
-
   if (status) {
     matchQuery.status = status;
   }
@@ -817,7 +815,6 @@ module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
       $limit: parseInt(per_page),
     },
   ];
-  
 
   const ordonnances = await ordonnance.aggregate(pipeline);
   const countResult = await ordonnance.aggregate([
@@ -828,6 +825,170 @@ module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
 
   res.status(200).json({ totalCount, ordonnances });
 });
+// module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
+//   const { page, search, status, date, numero, type } = req.query;
+//   let matchQuery = {
+//     status: { $nin: ["3", "4"] },
+//     type: "renouveller",
+//   };
+//   if (search) {
+//     matchQuery.$or.push(
+//       { nom: { $regex: search, $options: "i" } },
+//       { prenom: { $regex: search, $options: "i" } },
+//       { phone: { $regex: search, $options: "i" } },
+//       { email: { $regex: search, $options: "i" } }
+//     );
+//   }
+
+//   if (status) {
+//     matchQuery.status = status;
+//   }
+
+//   if (type) {
+//     matchQuery.type = type;
+//   }
+
+//   if (numero) {
+//     matchQuery.numero = parseInt(numero);
+//   }
+
+//   if (date) {
+//     const startOfDay = new Date(date);
+//     startOfDay.setHours(0, 0, 0, 0);
+//     const endOfDay = new Date(date);
+//     endOfDay.setHours(23, 59, 59, 999);
+//     matchQuery.dateReception = { $gte: startOfDay, $lte: endOfDay };
+//   }
+//   const pipeline = [
+//     { $match: matchQuery },
+//     {
+//       $lookup: {
+//         from: "users",
+//         localField: "collabId",
+//         foreignField: "_id",
+//         as: "collaborator",
+//       },
+//     },
+//     {
+//       $unwind: {
+//         path: "$collaborator",
+//         preserveNullAndEmptyArrays: true,
+//       },
+//     },
+//     {
+//       $lookup: {
+//         from: "notes",
+//         localField: "_id",
+//         foreignField: "ordonnanceId",
+//         as: "notes",
+//       },
+//     },
+//     {
+//       $lookup: {
+//         from: "cycles",
+//         localField: "_id",
+//         foreignField: "ordonnanceId",
+//         as: "cycles",
+//       },
+//     },
+//     {
+//       $unwind: {
+//         path: "$cycles",
+//       },
+//     },
+//     {
+//       $match: {
+//         "cycles.status": "3", // Only keep cycles with status "3"
+//       },
+//     },
+//     {
+//       $lookup: {
+//         from: "users",
+//         localField: "cycles.collabId",
+//         foreignField: "_id",
+//         as: "cycleCollaborator",
+//       },
+//     },
+//     {
+//       $unwind: {
+//         path: "$cycleCollaborator",
+//         preserveNullAndEmptyArrays: true,
+//       },
+//     },
+//     {
+//       $addFields: {
+//         cycleId: "$cycles._id",
+//         cycleNumber: "$cycles.cycleNumber",
+//         cycleStatus: "$cycles.status",
+//         cycleCreatedAt: "$cycles.createdAt",
+//         cycleNotes: {
+//           $filter: {
+//             input: "$notes",
+//             as: "note",
+//             cond: {
+//               $and: [
+//                 { $eq: ["$$note.cycleId", "$cycles._id"] },
+//                 { $eq: ["$$note.type", "cycle"] },
+//               ],
+//             },
+//           },
+//         },
+//       },
+//     },
+//     {
+//       $sort: { "cycles.createdAt": -1 }, // Sort cycles by createdAt in descending order (most recent first)
+//     },
+//     {
+//       $project: {
+//         numero: 1,
+//         nom: 1,
+//         prenom: 1,
+//         phone: 1,
+//         url: 1,
+//         email: 1,
+//         status: 1,
+//         dateReception: 1,
+//         updatedAt: 1,
+//         isMore500: 1,
+//         livraison: 1,
+//         adresse: 1,
+//         from: 1,
+//         collabId: 1,
+//         type: 1,
+//         dateRenouvellement: 1,
+//         times: 1,
+//         debutTime: 1,
+//         periodeRenouvellement: 1,
+//         dateTreatement: 1,
+//         "collaborator.nom": 1,
+//         "collaborator.prenom": 1,
+//         cycleId: 1,
+//         cycleNumber: 1,
+//         cycleStatus: 1,
+//         cycleCreatedAt: 1,
+//         cycleNotes: 1,
+//       },
+//     },
+//     {
+//       $sort: { numero: -1 },
+//     },
+//     {
+//       $skip: (page - 1) * parseInt(per_page),
+//     },
+//     {
+//       $limit: parseInt(per_page),
+//     },
+//   ];
+
+//   const ordonnances = await ordonnance.aggregate(pipeline);
+//   const countResult = await ordonnance.aggregate([
+//     ...pipeline.slice(0, -2),
+//     { $count: "totalCount" },
+//   ]);
+//   const totalCount = countResult.length > 0 ? countResult[0].totalCount : 0;
+
+//   res.status(200).json({ totalCount, ordonnances });
+// });
 module.exports.addOrdonnace = asyncHandler(async (req, res) => {
   try {
     const file = req.file;
@@ -1180,8 +1341,8 @@ module.exports.deleteOrdonnance = asyncHandler(async (req, res) => {
 
 module.exports.processRenewals = asyncHandler(async (req, res) => {
   try {
-    const startOfDay = moment().startOf("day").toDate();
-    const endOfDay = moment().endOf("day").toDate();
+    const startOfDay = moment().utc().startOf("day").toDate();
+    const endOfDay = moment().utc().endOf("day").toDate();
     console.log(`Processing renewals for ${moment(startOfDay)}`);
 
     const ordonnancesToRenew = await ordonnance.find({
@@ -1243,7 +1404,7 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
 
 module.exports.updateEnAttent = asyncHandler(async (req, res) => {
   try {
-    const startOfToday = moment().startOf("day").toDate();
+    const startOfToday = moment().utc().startOf("day").toDate();
     const ordonnancesToUpdate = await ordonnance.find({
       type: "unique",
       status: "1",
@@ -1266,7 +1427,7 @@ module.exports.updateEnAttent = asyncHandler(async (req, res) => {
 });
 module.exports.updateCylces = asyncHandler(async (req, res) => {
   try {
-    const startOfToday = moment().startOf("day").toDate();
+    const startOfToday = moment().utc().startOf("day").toDate();
     const cyclesToUpdate = await Cycle.find({
       status: "1",
       createdAt: { $lt: startOfToday },
@@ -1694,7 +1855,9 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
     countResultCycleEnRetard.length > 0
       ? countResultCycleEnRetard[0].totalCount
       : 0;
-
+  // const totalCountCycleEnRetard = await Cycle.countDocuments({
+  //   status: "3",
+  // });
   const countToday = [
     // {
     //   $match: {
@@ -1870,4 +2033,64 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
     dujour: totalCountDujour,
     terminerToday: countOrdonnancesToday,
   });
+});
+module.exports.cleanDuplicateCycles = asyncHandler(async (req, res) => {
+  try {
+    const duplicates = await Cycle.aggregate([
+      {
+        $group: {
+          _id: { ordonnanceId: "$ordonnanceId", cycleNumber: "$cycleNumber" },
+          cycles: { $push: "$_id" },
+          lastCycle: { $max: "$createdAt" }, // Most recent cycle
+        },
+      },
+      {
+        $match: {
+          "cycles.1": { $exists: true }, // Only groups with duplicates
+        },
+      },
+    ]);
+
+    let totalDeleted = 0; // Track total deleted cycles
+    let notesDeleted = 0; // Track total deleted notes
+
+    for (const group of duplicates) {
+      const { cycles } = group;
+
+      // Find the most recent cycle's ID
+      const lastCycle = await Cycle.findOne({
+        _id: { $in: cycles },
+      })
+        .sort({ createdAt: -1 })
+        .select("_id");
+
+      // Get IDs of cycles to delete (exclude the most recent one)
+      const cyclesToDelete = cycles.filter(
+        (id) => id.toString() !== lastCycle._id.toString()
+      );
+
+      if (cyclesToDelete.length > 0) {
+        // Delete the duplicate cycles
+        const deleteResult = await Cycle.deleteMany({
+          _id: { $in: cyclesToDelete },
+        });
+        totalDeleted += deleteResult.deletedCount;
+
+        // Delete associated notes
+        const noteDeleteResult = await note.deleteMany({
+          cycleId: { $in: cyclesToDelete },
+        });
+        notesDeleted += noteDeleteResult.deletedCount;
+      }
+    }
+
+    res.status(200).json({
+      message: "Cleanup completed!",
+      cyclesDeleted: totalDeleted,
+      notesDeleted: notesDeleted,
+    });
+  } catch (error) {
+    console.error("Error cleaning duplicate cycles:", error);
+    res.status(500).json({ error: "An error occurred during cleanup." });
+  }
 });

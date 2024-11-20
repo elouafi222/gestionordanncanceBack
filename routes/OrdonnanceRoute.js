@@ -11,6 +11,7 @@ const {
   getTodayOrdonnances,
   getEnRetardOrdonnances,
   getEnRetardCycles,
+  cleanDuplicateCycles,
 } = require("../controllers/OrdonnanceController");
 const validateId = require("../middelwares/validateId");
 const { verifyTokenAndAdminAndCollab } = require("../middelwares/verifyToken");
@@ -41,4 +42,5 @@ router
   .route("/addOrdonnanceCollab/:id")
   .put(validateId, verifyTokenAndAdminAndCollab, addOrdonnanceCollab);
 router.route("/getCount").get(verifyTokenAndAdminAndCollab, getCounts);
+// router.route("/cleanDuplicateCycles").get(cleanDuplicateCycles);
 module.exports = router;
