@@ -502,7 +502,7 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
     {
       $unwind: {
         path: "$collaborator",
-        preserveNullAndEmptyArrays: true,
+        preserveNullAndEmptyArrays: true, // Ensure ordonnances without collaborators are included
       },
     },
     {
@@ -519,20 +519,6 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
         localField: "_id",
         foreignField: "ordonnanceId",
         as: "cycles",
-      },
-    },
-    {
-      $lookup: {
-        from: "users",
-        localField: "cycles.collabId",
-        foreignField: "_id",
-        as: "cycleCollaborator",
-      },
-    },
-    {
-      $unwind: {
-        path: "$cycleCollaborator",
-        preserveNullAndEmptyArrays: true,
       },
     },
     {
