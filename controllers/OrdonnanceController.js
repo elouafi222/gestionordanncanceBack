@@ -672,26 +672,29 @@ module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
         as: "cycles",
       },
     },
+    //
+    {
+      $lookup: {
+        from: "notes",
+        localField: "_id",
+        foreignField: "ordonnanceId",
+        as: "notes",
+      },
+    },
+    {
+      $lookup: {
+        from: "cycles",
+        localField: "_id",
+        foreignField: "ordonnanceId",
+        as: "cycles",
+      },
+    },
     // Match ordonnances that have cycles with status 3
     {
       $match: {
         cycles: {
           $elemMatch: { status: "3" },
         },
-      },
-    },
-    {
-      $lookup: {
-        from: "users",
-        localField: "cycles.collabId",
-        foreignField: "_id",
-        as: "cycleCollaborator",
-      },
-    },
-    {
-      $unwind: {
-        path: "$cycleCollaborator",
-        preserveNullAndEmptyArrays: true,
       },
     },
     {
