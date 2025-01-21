@@ -1351,12 +1351,15 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
       type: "renouveller",
       status: { $ne: "3" },
     });
+
     const updatedOrdonnances = [];
 
     for (const ord of ordonnancesToRenew) {
       const lastCycle = await Cycle.findOne({ ordonnanceId: ord._id })
-        .sort({ createdAt: -1 })
+        .sort({ cycleNumber: -1 })
         .exec();
+
+      const nextCycleNumber = lastCycle ? lastCycle.cycleNumber + 1 : 1;
 
       if (lastCycle) {
         lastCycle.status = "3";
@@ -1370,12 +1373,11 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
       ord.dateRenouvellement = nextRenouvellementDate;
       ord.times -= 1;
       ord.collabId = null;
-
       const cycle = new Cycle({
         dateTreatement: new Date(),
         ordonnanceId: ord._id,
         collabId: null,
-        cycleNumber: ord.debutTime - ord.times,
+        cycleNumber: nextCycleNumber,
         status: "1",
       });
       await cycle.save();
@@ -1387,11 +1389,6 @@ module.exports.processRenewals = asyncHandler(async (req, res) => {
         ordonnanceId: ord._id,
       });
       await noteNew.save();
-
-      // if (ord.times === 0) {
-      //   ord.status = "3";
-      // }
-
       await ord.save();
       updatedOrdonnances.push(ord);
     }
