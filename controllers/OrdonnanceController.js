@@ -76,20 +76,6 @@ module.exports.getOrdonnances = asyncHandler(async (req, res) => {
       },
     },
     {
-      $lookup: {
-        from: "users",
-        localField: "cycles.collabId",
-        foreignField: "_id",
-        as: "cycleCollaborator",
-      },
-    },
-    {
-      $unwind: {
-        path: "$cycleCollaborator",
-        preserveNullAndEmptyArrays: true,
-      },
-    },
-    {
       $project: {
         numero: 1,
         nom: 1,
@@ -274,20 +260,6 @@ module.exports.getTodayOrdonnances = asyncHandler(async (req, res) => {
         localField: "_id",
         foreignField: "ordonnanceId",
         as: "cycles",
-      },
-    },
-    {
-      $lookup: {
-        from: "users",
-        localField: "cycles.collabId",
-        foreignField: "_id",
-        as: "cycleCollaborator",
-      },
-    },
-    {
-      $unwind: {
-        path: "$cycleCollaborator",
-        preserveNullAndEmptyArrays: true,
       },
     },
     {
@@ -502,7 +474,7 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
     {
       $unwind: {
         path: "$collaborator",
-        preserveNullAndEmptyArrays: true, // Ensure ordonnances without collaborators are included
+        preserveNullAndEmptyArrays: true,
       },
     },
     {
