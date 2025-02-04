@@ -1727,20 +1727,7 @@ module.exports.getCounts = asyncHandler(async (req, res) => {
         },
       },
     },
-    {
-      $lookup: {
-        from: "users",
-        localField: "cycles.collabId",
-        foreignField: "_id",
-        as: "cycleCollaborator",
-      },
-    },
-    {
-      $unwind: {
-        path: "$cycleCollaborator",
-        preserveNullAndEmptyArrays: true,
-      },
-    },
+   
     {
       $project: {
         numero: 1,
