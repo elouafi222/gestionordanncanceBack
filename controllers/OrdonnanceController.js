@@ -11,8 +11,15 @@ const { note } = require("../models/note");
 const sendEmail = require("../utils/sendEmail");
 const { cycle: Cycle } = require("../models/cycle");
 module.exports.getOrdonnances = asyncHandler(async (req, res) => {
-  const { page, search, status, date, numero, type, exceptEnrtardAndTerminer } =
-    req.query;
+  const {
+    page = 1,
+    search,
+    status,
+    date,
+    numero,
+    type,
+    exceptEnrtardAndTerminer,
+  } = req.query;
 
   let matchQuery = {};
 
@@ -191,7 +198,7 @@ module.exports.getOrdonnances = asyncHandler(async (req, res) => {
   }
 });
 module.exports.getTodayOrdonnances = asyncHandler(async (req, res) => {
-  const { page, search, status, date, numero, type } = req.query;
+  const { page = 1, search, status, date, numero, type } = req.query;
 
   const today = new Date();
   console.log(today);
@@ -428,7 +435,7 @@ module.exports.getTodayOrdonnances = asyncHandler(async (req, res) => {
   }
 });
 module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
-  const { page, search, status, date, numero, type } = req.query;
+  const { page = 1, search, status, date, numero, type } = req.query;
   let matchQuery = {
     status: { $nin: ["3"] },
   };
@@ -580,7 +587,7 @@ module.exports.getEnRetardOrdonnances = asyncHandler(async (req, res) => {
   res.status(200).json({ totalCount, ordonnances });
 });
 module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
-  const { page, search, status, date, numero, type } = req.query;
+  const { page = 1, search, status, date, numero, type } = req.query;
   let matchQuery = {
     status: { $nin: ["3", "4"] },
     type: "renouveller",
@@ -787,7 +794,7 @@ module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
   res.status(200).json({ totalCount, ordonnances });
 });
 // module.exports.getEnRetardCycles = asyncHandler(async (req, res) => {
-//   const { page, search, status, date, numero, type } = req.query;
+//   const { page = 1, search, status, date, numero, type } = req.query;
 //   let matchQuery = {
 //     status: { $nin: ["3", "4"] },
 //     type: "renouveller",
