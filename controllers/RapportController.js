@@ -10,8 +10,90 @@ module.exports.getOrdonnanceStatistics = asyncHandler(async (req, res) => {
 
   const startDate = new Date(dateStart);
   const endDate = new Date(dateFin);
-  endDate.setHours(23, 59, 59, 999); // Set to the end of the day
+  endDate.setHours(23, 59, 59, 999); // fin de journée incluse
 
+  /* ---------- 1.  Statistiques par statut ---------- */
+  const statsByStatus = await ordonnance.aggregate([
+    { $match: { dateReception: { $gte: startDate, $lte: endDate } } },
+    // jointure user ↔ collabId
+  {
+    $lookup: {
+      from: "users",
+      localField: "collabId",
+      foreignField: "_id",
+      as: "collaborator",
+    },
+  },
+  { $unwind: { path: "$collaborator", preserveNullAndEmptyArrays: true } },
+
+    {
+      $group: {
+      _id: "$status",
+      count: { $sum: 1 },
+      details: {
+        $push: {
+          numero: "$numero",
+          type: "$type",
+          nom: "$nom",
+          prenom: "$prenom",
+          phone: "$phone",
+          email: "$email",
+          // 👇 ajoute le collaborateur complet
+          collaborator: {
+            nom: "$collaborator.nom",
+            prenom: "$collaborator.prenom",
+            username: "$collaborator.username",
+          },
+          // 👇 ajoute la date de dernière mise à jour
+          updatedAt: "$updatedAt",
+        },
+      },
+    },
+  },
+  { $sort: { _id: 1 } },
+]);
+
+  /* ---------- 2.  Statistiques par utilisateur ---------- */
+  const statsByUser = await ordonnance.aggregate([
+    { $match: { dateReception: { $gte: startDate, $lte: endDate } } },
+    {
+      $group: {
+        _id: "$collabId", // null si personne n’a encore traité
+        count: { $sum: 1 },
+      },
+    },
+    /* jointure avec la collection users */
+    {
+      $lookup: {
+        from: "users",
+        localField: "_id",
+        foreignField: "_id",
+        as: "userInfo",
+      },
+    },
+    { $unwind: { path: "$userInfo", preserveNullAndEmptyArrays: true } },
+    /* projection finale : on garde seulement les infos utiles */
+    {
+      $project: {
+        _id: 1,
+        count: 1,
+        userDetails: {
+          $cond: [
+            { $ifNull: ["$userInfo", false] },
+            {
+              nom: "$userInfo.nom",
+              prenom: "$userInfo.prenom",
+              username: "$userInfo.username",
+            },
+            null,
+          ],
+        },
+      },
+    },
+    { $sort: { count: -1 } },
+  ]);
+
+  /* ---------- 3.  Mapping des statuts + total ---------- */
   const statusMap = {
     1: "en attente",
     2: "en cours",
@@ -19,87 +101,22 @@ module.exports.getOrdonnanceStatistics = asyncHandler(async (req, res) => {
     4: "en retard",
   };
 
-  const statisticsByStatus = await ordonnance.aggregate([
-    {
-      $match: {
-        dateReception: { $gte: startDate, $lte: endDate }, // Include the entire day of dateFin
-      },
-    },
-    {
-      $group: {
-        _id: "$status",
-        count: { $sum: 1 },
-        details: {
-          $push: {
-            numero: "$numero",
-            type: "$type",
-            nom: "$nom",
-            prenom: "$prenom",
-            phone: "$phone",
-            email: "$email",
-            dateReception: "$dateReception",
-          },
-        },
-      },
-    },
-    {
-      $addFields: {
-        statusName: {
-          $switch: {
-            branches: [
-              { case: { $eq: ["$_id", 1] }, then: "en attente" },
-              { case: { $eq: ["$_id", 2] }, then: "en cours" },
-              { case: { $eq: ["$_id", 3] }, then: "terminée" },
-              { case: { $eq: ["$_id", 4] }, then: "en retard" },
-            ],
-            default: "inconnu",
-          },
-        },
-      },
-    },
-    {
-      $sort: { _id: 1 },
-    },
-  ]);
-
-  const statisticsByUser = await ordonnance.aggregate([
-    {
-      $match: {
-        dateReception: { $gte: startDate, $lte: endDate }, // Include the entire day of dateFin
-      },
-    },
-    {
-      $group: {
-        _id: { $ifNull: ["$collabId", "inconnu"] }, // Replace null with "inconnu"
-        count: { $sum: 1 },
-      },
-    },
-    {
-      $sort: { count: -1 },
-    },
-  ]);
-
-  // Populate user details for non-null collabId
-  const populatedResults = await Promise.all(
-    statisticsByUser.map(async (item) => {
-      if (item._id !== "inconnu") {
-        const userDetails = await user.findById(item._id).select("nom prenom username");
-        return { ...item, userDetails };
-      } else {
-        return { ...item, userDetails: null }; // For "inconnu", userDetails is null
-      }
-    })
+  const totalOrdonnances = statsByStatus.reduce(
+    (sum, item) => sum + item.count,
+    0
   );
 
+  /* ---------- 4.  Réponse ---------- */
   res.status(200).json({
-    totalOrdonnances: statisticsByStatus.reduce(
-      (sum, item) => sum + item.count,
-      0
-    ),
-    statsByStatus: statisticsByStatus.map((item) => ({
+    totalOrdonnances,
+    statsByStatus: statsByStatus.map((item) => ({
       ...item,
       statusName: statusMap[item._id] || "inconnu",
     })),
-    statsByUser: populatedResults,
+    statsByUser: statsByUser.map((u) => ({
+      ...u,
+      // pour le front : string « inconnu » si aucun collabId
+      collabId: u._id ? u._id : "inconnu",
+    })),
   });
 });
