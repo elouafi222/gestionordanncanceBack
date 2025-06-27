@@ -227,5 +227,5 @@ module.exports.getOrdonnanceStatistics = asyncHandler(async (req, res) => {
       statusName: statusMap[ord.status] || "inconnu",
       collaborator: ord.collabId
     }))
-  });
-}); 
+  }); 
+});  
