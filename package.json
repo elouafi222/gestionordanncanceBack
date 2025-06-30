@@ -29,7 +29,7 @@
     "randomstring": "^1.3.0"
   },
   "scripts": {
-    "start": "nodemon server.js",
+    "start": "node server",
     "dev": "nodemon server"
   }
 }
